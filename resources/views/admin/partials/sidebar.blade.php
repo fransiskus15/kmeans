@@ -1,6 +1,6 @@
 <div class="sidebar-label">MENU</div>
 
-<a href="{{ route('dashboard') }}" class="sidebar-item {{ ($activeMenu ?? '') === 'dashboard' ? 'active' : '' }}">
+<a href="{{ route('admin.dashboard') }}" class="sidebar-item {{ ($activeMenu ?? '') === 'dashboard' ? 'active' : '' }}">
     <i class="bi bi-grid"></i> Dashboard
 </a>
 <a href="{{ route('admin.aset') }}" class="sidebar-item {{ ($activeMenu ?? '') === 'aset' ? 'active' : '' }}">
@@ -10,15 +10,37 @@
     class="sidebar-item {{ ($activeMenu ?? '') === 'peminjaman' ? 'active' : '' }}">
     <i class="bi bi-file-earmark-text"></i> Peminjaman
 </a>
-<a href="#" class="sidebar-item {{ ($activeMenu ?? '') === 'pengguna' ? 'active' : '' }}">
-    <i class="bi bi-people"></i> Pengguna
+<a href="{{ route('admin.cluster') }}"
+    class="sidebar-item {{ ($activeMenu ?? '') === 'cluster' ? 'active' : '' }}">
+    <i class="bi bi-pie-chart"></i> Analisis cluster
 </a>
+{{-- <a href="#" class="sidebar-item {{ ($activeMenu ?? '') === 'pengguna' ? 'active' : '' }}">
+    <i class="bi bi-people"></i> Pengguna
+</a> --}}
 
 <div class="sidebar-label">ANALISIS</div>
 
-<a href="#" class="sidebar-item {{ ($activeMenu ?? '') === 'cluster' ? 'active' : '' }}">
-    <i class="bi bi-diagram-3"></i> Cluster
-</a>
 <a href="{{ route('admin.laporan') }}" class="sidebar-item {{ ($activeMenu ?? '') === 'laporan' ? 'active' : '' }}">
     <i class="bi bi-file-earmark-bar-graph"></i> Laporan
 </a>
+
+<form action="{{ route('logout') }}" method="POST" style="margin:0;">
+    @csrf
+    <button
+        type="submit"
+        class="sidebar-item"
+        style="
+            width:100%;
+            border:none;
+            background:none;
+            text-align:left;
+            cursor:pointer;
+            font-family:inherit;
+            font-size:inherit;
+            color:#A32D2D;
+        "
+        onclick="return confirm('Anda yakin ingin keluar dari sistem?')"
+    >
+        <i class="bi bi-box-arrow-right"></i> Keluar
+    </button>
+</form>

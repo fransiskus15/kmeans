@@ -408,8 +408,7 @@
                             @endif
                         </a>
                         <div class="user-profile">
-                            <div class="user-avatar">{{ $karyawan['inisial'] ?? 'BS' }}</div>
-                            <span class="user-name">{{ $karyawan['nama'] ?? 'Budi Santoso' }}</span>
+                           <i class="bi bi-person-circle"></i> {{ auth()->user()->nama }}
                         </div>
                     </div>
                 @endif

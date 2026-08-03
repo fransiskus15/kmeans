@@ -31,6 +31,8 @@
     <div class="row g-3">
         {{-- Kolom kiri --}}
         <div class="col-lg-6">
+
+            {{-- Peminjaman Aktif --}}
             <div class="panel-card mb-3">
                 <div class="panel-title">Peminjaman aktif saya</div>
                 <div class="table-responsive">
@@ -43,24 +45,31 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($peminjaman_aktif as $row)
+                            @forelse ($peminjaman_aktif as $row)
                             <tr>
                                 <td>{{ $row['aset'] }}</td>
                                 <td>{{ $row['batas_kembali'] }}</td>
                                 <td>
-                                    @if ($row['status'] === 'Terlambat')
+                                    @if (str_contains($row['status'], 'Terlambat'))
                                         <span class="badge-status badge-terlambat">{{ $row['status'] }}</span>
                                     @else
                                         <span class="badge-status badge-aktif">{{ $row['status'] }}</span>
                                     @endif
                                 </td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3" style="font-size:13px;">
+                                    Tidak ada peminjaman aktif saat ini.
+                                </td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
 
+            {{-- Menunggu Approval --}}
             <div class="panel-card">
                 <div class="panel-title">Menunggu approval</div>
                 <div class="table-responsive">
@@ -73,7 +82,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($menunggu_approval as $row)
+                            @forelse ($menunggu_approval as $row)
                             <tr>
                                 <td>{{ $row['aset'] }}</td>
                                 <td>{{ $row['tgl_ajukan'] }}</td>
@@ -81,15 +90,24 @@
                                     <span class="badge-status badge-menunggu">{{ $row['status'] }}</span>
                                 </td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3" style="font-size:13px;">
+                                    Tidak ada permintaan yang menunggu approval.
+                                </td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
+
         </div>
 
         {{-- Kolom kanan --}}
         <div class="col-lg-6">
+
+            {{-- Riwayat Terakhir --}}
             <div class="panel-card mb-3">
                 <div class="panel-title">Riwayat terakhir</div>
                 <div class="table-responsive">
@@ -102,7 +120,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($riwayat_terakhir as $row)
+                            @forelse ($riwayat_terakhir as $row)
                             <tr>
                                 <td>{{ $row['aset'] }}</td>
                                 <td>{{ $row['kembali'] }}</td>
@@ -114,12 +132,19 @@
                                     @endif
                                 </td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3" style="font-size:13px;">
+                                    Belum ada riwayat pengembalian.
+                                </td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
 
+            {{-- Profil Peminjaman --}}
             <div class="profile-card">
                 <div class="panel-title">Profil peminjaman saya</div>
 
@@ -129,18 +154,23 @@
                 </div>
                 <div class="profile-row">
                     <span class="profile-label">Rata-rata durasi</span>
-                    <span class="profile-value">{{ $profil['rata_durasi'] }} hari</span>
+                    <span class="profile-value">
+                        {{ $profil['rata_durasi'] > 0 ? $profil['rata_durasi'] . ' hari' : '-' }}
+                    </span>
                 </div>
                 <div class="profile-row">
                     <span class="profile-label">Tingkat keterlambatan</span>
                     <span class="profile-value">
                         {{ $profil['tingkat_keterlambatan'] }}
-                        <span class="profile-good ms-1">
-                            <i class="bi bi-check-circle-fill"></i> {{ $profil['keterangan'] }}
-                        </span>
+                        @if ($profil['total_peminjaman'] > 0)
+                            <span class="profile-good ms-1">
+                                <i class="bi bi-check-circle-fill"></i> {{ $profil['keterangan'] }}
+                            </span>
+                        @endif
                     </span>
                 </div>
             </div>
+
         </div>
     </div>
 

@@ -493,9 +493,8 @@
                             <i class="bi bi-bell"></i>
                             <span class="dot"></span>
                         </button>
-                        <div class="user-profile">
-                            <div class="user-avatar">{{ $hr['inisial'] ?? 'SR' }}</div>
-                            <span class="user-name">{{ $hr['nama'] ?? 'Siti Rahayu (HR)' }}</span>
+                           <div class="user-profile">
+                           <i class="bi bi-person-circle"></i> {{ auth()->user()->nama }}
                         </div>
                     </div>
                 @endif

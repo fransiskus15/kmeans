@@ -103,7 +103,7 @@ class LaporanController extends Controller
             ]
         ]);
 
-        return view('laporan.index', compact(
+        return view('admin.laporan', compact(
             'peminjaman', 'statistik', 'kategoriList',
             'periodeFrom', 'periodeTo', 'kategori', 'status'
         ));
@@ -125,7 +125,7 @@ class LaporanController extends Controller
 
         $statistik = $this->hitungStatistik($peminjaman);
 
-        $pdf = Pdf::loadView('laporan.pdf', [
+        $pdf = PDF::loadView('laporan.pdf', [
             'peminjaman' => $peminjaman,
             'statistik'  => $statistik,
             'filter'     => $filter,

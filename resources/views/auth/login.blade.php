@@ -78,6 +78,35 @@
         color: #4a4a4a;
         line-height: 1.5;
     }
+
+    .input-group .btn {
+    border: 1px solid #d9d9d4;
+    border-left: none;
+    background-color: #ffffff;
+}
+
+.input-group .form-control {
+    border-right: 0;
+}
+
+.input-group .btn {
+    background: #fff;
+    border: 1px solid #d9d9d4;
+    border-left: 0;
+}
+
+.input-group .btn i {
+    font-size: 1rem;
+    color: #6c757d;
+}
+
+.input-group .btn:hover i {
+    color: #000;
+}
+
+.input-group .btn:focus {
+    box-shadow: none;
+}
     </style>
 </head>
 
@@ -105,14 +134,30 @@
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
                     <input type="email" class="form-control" id="email" name="email"
-                        value="{{ old('email', 'budi@batampos.co.id') }}" placeholder="budi@batampos.co.id" required>
+                         placeholder="budi@batampos.co.id" required>
                 </div>
 
                 <div class="mb-4">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="password" name="password" placeholder="••••••••"
-                        required>
-                </div>
+    <label for="password" class="form-label">Password</label>
+
+    <div class="input-group">
+        <input
+            type="password"
+            class="form-control"
+            id="password"
+            name="password"
+            placeholder="••••••••"
+            required>
+
+        <button
+            class="btn btn-outline-secondary"
+            type="button"
+            id="togglePassword">
+
+            <i class="bi bi-eye"></i>
+        </button>
+    </div>
+</div>
 
                 <button type="submit"
                     class="btn btn-login w-100 d-flex align-items-center justify-content-center gap-2">
@@ -132,6 +177,31 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const password = document.getElementById('password');
+    const togglePassword = document.getElementById('togglePassword');
+    const icon = togglePassword.querySelector('i');
+
+    togglePassword.addEventListener('click', function () {
+
+        if (password.type === 'password') {
+            password.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            password.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+
+    });
+
+});
+</script>
+
 </body>
 
 </html>

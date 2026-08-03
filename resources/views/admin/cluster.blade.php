@@ -1,4 +1,4 @@
-@extends('layouts.hr')
+@extends('layouts.admin')
 
 @section('title', 'Analisis K-Means Clustering — Batam Pos')
 
@@ -13,7 +13,6 @@
         Jalankan ulang
         <i class="bi bi-arrow-repeat"></i>
     </button>
-    <div class="user-avatar">{{ $hr['inisial'] }}</div>
 @endsection
 
 @push('styles')
@@ -427,7 +426,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($peminjam as $row)
+                            @forelse ($peminjam as $row)
                                 <tr>
                                     <td>{{ $row['nama'] }}</td>
                                     <td>
@@ -437,15 +436,22 @@
                                     </td>
                                     <td>{{ $row['terlambat'] }}</td>
                                     <td>
-                                        <a href="{{ route('hr.approval') }}" class="link-tinjau">
+                                        <a href="{{ route('clustering.detail', $row['id']) }}" class="link-tinjau">
                                             Detail
                                             <i class="bi bi-arrow-up-right"></i>
                                         </a>
                                     </td>
                                 </tr>
-                            @endforeach
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">Belum ada data cluster.</td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
+                </div>
+                <div class="mt-2">
+                    {{ $peminjamRaw->links() }}
                 </div>
             </div>
         </div>

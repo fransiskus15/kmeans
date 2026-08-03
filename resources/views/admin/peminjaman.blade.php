@@ -8,7 +8,12 @@
 @section('content')
     @if (session('success'))
         <div class="alert alert-success mb-3" style="font-size:13px;border-radius:8px;">
-            {{ session('success') }}
+            <i class="bi bi-check-circle-fill me-1"></i> {{ session('success') }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger mb-3" style="font-size:13px;border-radius:8px;">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ session('error') }}
         </div>
     @endif
 
@@ -30,7 +35,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($peminjaman as $row)
+                    @forelse ($peminjaman as $row)
                     <tr class="@if ($row['terlambat_hari'] > 0 && $row['status'] !== 'Dikembalikan') row-terlambat @endif @if ($selected && $selected['id'] === $row['id']) row-selected @endif">
                         <td class="fw-semibold">{{ $row['id'] }}</td>
                         <td>{{ $row['peminjam'] }}</td>
@@ -56,13 +61,21 @@
                             @endif
                         </td>
                     </tr>
-                    @endforeach
+                    @empty
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Tidak ada peminjaman aktif saat ini.</td>
+                    </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
 
         <div class="table-legend">
             Baris merah = peminjaman yang sudah melewati batas waktu pengembalian
+        </div>
+
+        <div class="mt-3">
+            {{ $rawList->withQueryString()->links() }}
         </div>
     </div>
 
@@ -140,10 +153,10 @@
                     <div class="mb-3">
                         <label for="kondisi_aset" class="form-label-custom">Kondisi aset saat dikembalikan</label>
                         <select id="kondisi_aset" name="kondisi_aset" class="form-select form-select-custom" required>
-                            <option value="Baik — tidak ada kerusakan" {{ old('kondisi_aset', 'Baik — tidak ada kerusakan') === 'Baik — tidak ada kerusakan' ? 'selected' : '' }}>
+                            <option value="Baik" {{ old('kondisi_aset', 'Baik') === 'Baik' ? 'selected' : '' }}>
                                 Baik — tidak ada kerusakan
                             </option>
-                            <option value="Perlu perawatan" {{ old('kondisi_aset') === 'Perlu perawatan' ? 'selected' : '' }}>
+                            <option value="Perlu Perawatan" {{ old('kondisi_aset') === 'Perlu Perawatan' ? 'selected' : '' }}>
                                 Perlu perawatan
                             </option>
                             <option value="Rusak" {{ old('kondisi_aset') === 'Rusak' ? 'selected' : '' }}>
@@ -153,9 +166,9 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="catatan_pengembalian" class="form-label-custom">Catatan pengembalian (opsional)</label>
-                        <textarea id="catatan_pengembalian" name="catatan_pengembalian" class="form-control form-note" rows="4"
-                            placeholder="catatan kondisi atau keterangan tambahan dari Admin Aset...">{{ old('catatan_pengembalian') }}</textarea>
+                        <label for="catatan" class="form-label-custom">Catatan pengembalian (opsional)</label>
+                        <textarea id="catatan" name="catatan" class="form-control form-note" rows="4"
+                            placeholder="catatan kondisi atau keterangan tambahan dari Admin Aset...">{{ old('catatan') }}</textarea>
                     </div>
 
                     <div class="info-alert mb-3">

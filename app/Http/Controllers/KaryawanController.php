@@ -2,159 +2,383 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Peminjaman;
+use App\Models\Notifikasi;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class KaryawanController extends Controller
 {
+    // ══════════════════════════════════════════════════════════════════════
+    // HELPER — data karyawan dari user yang sedang login
+    // ══════════════════════════════════════════════════════════════════════
     private function karyawanData(): array
     {
+        $user        = Auth::user();
+        $unreadCount = Notifikasi::where('pengguna_id', Auth::id())
+                          ->where('dibaca', false)
+                          ->count();
+
         return [
-            'nama' => 'Budi Santoso',
-            'role' => 'Karyawan',
-            'inisial' => 'BS',
-            'unread_notifikasi' => 3,
+            'nama'              => $user->nama ?? '-',
+            'role'              => 'Karyawan',
+            'inisial'           => strtoupper(substr($user->nama ?? 'K', 0, 2)),
+            'unread_notifikasi' => $unreadCount,
         ];
     }
 
-    private function notifikasiData(): array
-    {
-        return [
-            [
-                'id' => 1,
-                'type' => 'approved',
-                'kategori' => 'peminjaman',
-                'judul' => 'Permintaan peminjaman disetujui',
-                'pesan' => 'Kamera Sony A7 III disetujui oleh Siti Rahayu (HR). Ambil ke Admin Aset.',
-                'waktu' => '5 mnt lalu',
-                'dibaca' => false,
-            ],
-            [
-                'id' => 2,
-                'type' => 'reminder',
-                'kategori' => 'peminjaman',
-                'judul' => 'Pengingat: batas pengembalian hari ini',
-                'pesan' => 'Laptop Dell XPS 15 harus dikembalikan hari ini (05 Jul).',
-                'waktu' => '2 jam lalu',
-                'dibaca' => false,
-            ],
-            [
-                'id' => 3,
-                'type' => 'rejected',
-                'kategori' => 'peminjaman',
-                'judul' => 'Permintaan peminjaman ditolak',
-                'pesan' => 'Tripod Manfrotto ditolak. Alasan: Aset dibutuhkan untuk liputan prioritas minggu ini.',
-                'waktu' => 'Kemarin',
-                'dibaca' => false,
-            ],
-            [
-                'id' => 4,
-                'type' => 'returned',
-                'kategori' => 'peminjaman',
-                'judul' => 'Pengembalian aset dikonfirmasi',
-                'pesan' => 'Admin mengkonfirmasi pengembalian Drone DJI Mini 3 Pro pada 28 Jun dalam kondisi baik.',
-                'waktu' => '28 Jun',
-                'dibaca' => true,
-            ],
-            [
-                'id' => 5,
-                'type' => 'approved',
-                'kategori' => 'peminjaman',
-                'judul' => 'Permintaan peminjaman disetujui',
-                'pesan' => 'Drone DJI Mini 3 Pro disetujui. Periode pinjam: 20–28 Jun 2025.',
-                'waktu' => '20 Jun',
-                'dibaca' => true,
-            ],
-        ];
-    }
-
+    // ══════════════════════════════════════════════════════════════════════
+    // DASHBOARD — semua data dari database berdasarkan user login
+    // ══════════════════════════════════════════════════════════════════════
     public function dashboard()
     {
-        return view('karyawan.dashboard', [
-            'karyawan' => $this->karyawanData(),
-            'activeMenu' => 'dashboard',
-            'stats' => [
-                'sedang_dipinjam' => 2,
-                'menunggu_approval' => 1,
-                'total_peminjaman' => 14,
-            ],
-            'peminjaman_aktif' => [
-                ['aset' => 'Kamera Sony A7', 'batas_kembali' => '09 Jul', 'status' => 'Aktif'],
-                ['aset' => 'Laptop Dell XPS', 'batas_kembali' => '05 Jul', 'status' => 'Terlambat'],
-            ],
-            'menunggu_approval' => [
-                ['aset' => 'Mikrofon Rode NT1', 'tgl_ajukan' => '04 Jul', 'status' => 'Menunggu'],
-            ],
-            'riwayat_terakhir' => [
-                ['aset' => 'Tripod Manfrotto', 'kembali' => '28 Jun', 'ket' => 'Tepat waktu'],
-                ['aset' => 'Drone DJI Mini', 'kembali' => '20 Jun', 'ket' => 'Tepat waktu'],
-                ['aset' => 'Kamera Canon EOS', 'kembali' => '10 Jun', 'ket' => 'Terlambat 2hr'],
-            ],
-            'profil' => [
-                'total_peminjaman' => 14,
-                'rata_durasi' => 4.2,
-                'tingkat_keterlambatan' => '7.1%',
-                'keterangan' => 'baik',
-            ],
-        ]);
+        $userId = Auth::id();
+
+        // ── 1. Stat Cards ──────────────────────────────────────────────────
+        $stats = [
+            'sedang_dipinjam'   => Peminjaman::where('pengguna_id', $userId)
+                                      ->whereIn('status', ['Disetujui', 'Dipinjam'])
+                                      ->count(),
+            'menunggu_approval' => Peminjaman::where('pengguna_id', $userId)
+                                      ->where('status', 'Menunggu Persetujuan')
+                                      ->count(),
+            'total_peminjaman'  => Peminjaman::where('pengguna_id', $userId)
+                                      ->count(),
+        ];
+
+        // ── 2. Peminjaman aktif (Disetujui / Dipinjam) ────────────────────
+        $peminjaman_aktif = Peminjaman::with('aset')
+            ->where('pengguna_id', $userId)
+            ->whereIn('status', ['Disetujui', 'Dipinjam'])
+            ->orderBy('tgl_rencana_kembali')
+            ->get()
+            ->map(function ($p) {
+                $batas     = Carbon::parse($p->tgl_rencana_kembali);
+                $terlambat = !$p->tgl_kembali_aktual && Carbon::now()->gt($batas);
+
+                return [
+                    'aset'          => $p->aset->nama_aset ?? '-',
+                    'batas_kembali' => $batas->format('d M Y'),
+                    'status'        => $terlambat
+                                        ? 'Terlambat ' . Carbon::now()->diffInDays($batas) . ' hr'
+                                        : 'Aktif',
+                ];
+            });
+
+        // ── 3. Menunggu approval ───────────────────────────────────────────
+        $menunggu_approval = Peminjaman::with('aset')
+            ->where('pengguna_id', $userId)
+            ->where('status', 'Menunggu Persetujuan')
+            ->orderBy('tgl_pengajuan', 'desc')
+            ->get()
+            ->map(fn($p) => [
+                'aset'       => $p->aset->nama_aset ?? '-',
+                'tgl_ajukan' => Carbon::parse($p->tgl_pengajuan)->format('d M Y'),
+                'status'     => 'Menunggu',
+            ]);
+
+        // ── 4. Riwayat terakhir (5 peminjaman selesai terbaru) ────────────
+        $riwayat_terakhir = Peminjaman::with('aset')
+            ->where('pengguna_id', $userId)
+            ->whereIn('status', ['Dikembalikan', 'Dikembalikan Terlambat'])
+            ->orderBy('tgl_kembali_aktual', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($p) {
+                $isTerlambat = $p->status === 'Dikembalikan Terlambat'
+                    || (
+                        $p->tgl_kembali_aktual
+                        && Carbon::parse($p->tgl_kembali_aktual)->gt(Carbon::parse($p->tgl_rencana_kembali))
+                    );
+
+                $hariTerlambat = 0;
+                if ($isTerlambat && $p->tgl_kembali_aktual) {
+                    $hariTerlambat = Carbon::parse($p->tgl_rencana_kembali)
+                        ->diffInDays(Carbon::parse($p->tgl_kembali_aktual));
+                }
+
+                return [
+                    'aset'   => $p->aset->nama_aset ?? '-',
+                    'kembali'=> $p->tgl_kembali_aktual
+                                    ? Carbon::parse($p->tgl_kembali_aktual)->format('d M Y')
+                                    : '-',
+                    'ket'    => $isTerlambat
+                                    ? 'Terlambat ' . $hariTerlambat . ' hr'
+                                    : 'Tepat waktu',
+                ];
+            });
+
+        // ── 5. Profil peminjaman (statistik perilaku) ─────────────────────
+        $selesai      = Peminjaman::where('pengguna_id', $userId)
+                            ->whereIn('status', ['Dikembalikan', 'Dikembalikan Terlambat'])
+                            ->get();
+        $totalSelesai = $selesai->count();
+
+        // Rata-rata durasi (hari pinjam → hari kembali aktual)
+        $rataDurasi = 0;
+        if ($totalSelesai > 0) {
+            $totalHari = $selesai->sum(function ($p) {
+                if ($p->tgl_pinjam && $p->tgl_kembali_aktual) {
+                    return Carbon::parse($p->tgl_pinjam)
+                        ->diffInDays(Carbon::parse($p->tgl_kembali_aktual));
+                }
+                return 0;
+            });
+            $rataDurasi = round($totalHari / $totalSelesai, 1);
+        }
+
+        // Tingkat keterlambatan (% dari total selesai)
+        $totalTerlambat = $selesai->where('status', 'Dikembalikan Terlambat')->count();
+        $pctTerlambat   = $totalSelesai > 0
+            ? round($totalTerlambat / $totalSelesai * 100, 1)
+            : 0;
+
+        $keterangan = match (true) {
+            $pctTerlambat === 0.0 => 'Sempurna',
+            $pctTerlambat <= 10.0 => 'Baik',
+            $pctTerlambat <= 30.0 => 'Cukup',
+            default               => 'Perlu perbaikan',
+        };
+
+        $profil = [
+            'total_peminjaman'      => $stats['total_peminjaman'],
+            'rata_durasi'           => $rataDurasi,
+            'tingkat_keterlambatan' => $pctTerlambat . '%',
+            'keterangan'            => $keterangan,
+        ];
+
+        $karyawan = $this->karyawanData();
+
+        return view('karyawan.dashboard', compact(
+            'karyawan', 'stats', 'peminjaman_aktif',
+            'menunggu_approval', 'riwayat_terakhir', 'profil'
+        ) + ['activeMenu' => 'dashboard']);
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // PENGAJUAN PEMINJAMAN
+    // ══════════════════════════════════════════════════════════════════════
     public function pengajuan()
     {
+        // Ambil kategori unik dari aset yang tersedia
+        $kategoriList = \App\Models\Aset::where('status', 'Tersedia')
+            ->distinct()
+            ->pluck('kategori')
+            ->sort()
+            ->values();
+
+        $kategori_aset = $kategoriList->map(fn($k) => ['id' => $k, 'nama' => $k])->values()->toArray();
+
+        $asetDb = \App\Models\Aset::where('status', 'Tersedia')
+            ->orderBy('kategori')
+            ->orderBy('nama_aset')
+            ->get();
+
+        $aset_tersedia = $asetDb->map(fn($a) => [
+            'id'          => $a->id_aset,
+            'kategori_id' => $a->kategori,
+            'nama'        => $a->nama_aset,
+            'status'      => $a->status,
+        ])->toArray();
+
+        $user     = Auth::user();
+        $karyawan = [
+            'nama'              => $user->nama,
+            'role'              => 'Karyawan',
+            'inisial'           => strtoupper(substr($user->nama, 0, 2)),
+            'unread_notifikasi' => Notifikasi::where('pengguna_id', Auth::id())->where('dibaca', false)->count(),
+        ];
+
         return view('karyawan.pengajuan', [
-            'karyawan' => $this->karyawanData(),
-            'activeMenu' => 'pengajuan',
-            'kategori_aset' => [
-                ['id' => '1', 'nama' => 'Kamera & peralatan foto'],
-                ['id' => '2', 'nama' => 'Laptop & komputer'],
-                ['id' => '3', 'nama' => 'Audio & mikrofon'],
-                ['id' => '4', 'nama' => 'Proyektor & display'],
+            'karyawan'      => $karyawan,
+            'activeMenu'    => 'pengajuan',
+            'kategori_aset' => $kategori_aset,
+            'aset_tersedia' => $aset_tersedia,
+            'form'          => [
+                'kategori_aset'   => old('kategori_aset', $kategori_aset[0]['id'] ?? ''),
+                'aset_id'         => old('aset_id', ''),
+                'tanggal_pinjam'  => old('tanggal_pinjam', now()->format('Y-m-d')),
+                'tanggal_kembali' => old('tanggal_kembali', now()->addWeek()->format('Y-m-d')),
+                'keperluan'       => old('keperluan', ''),
             ],
-            'aset_tersedia' => [
-                ['id' => '1', 'kategori_id' => '1', 'nama' => 'Kamera Sony A7 III', 'status' => 'Tersedia'],
-                ['id' => '2', 'kategori_id' => '1', 'nama' => 'Kamera Canon EOS R6', 'status' => 'Tersedia'],
-                ['id' => '3', 'kategori_id' => '2', 'nama' => 'Laptop Dell XPS 15', 'status' => 'Tersedia'],
-                ['id' => '4', 'kategori_id' => '2', 'nama' => 'MacBook Pro 14"', 'status' => 'Tersedia'],
-                ['id' => '5', 'kategori_id' => '3', 'nama' => 'Mikrofon Rode NT1', 'status' => 'Tersedia'],
-                ['id' => '6', 'kategori_id' => '4', 'nama' => 'Proyektor Epson EB-X06', 'status' => 'Tersedia'],
-            ],
-            'form' => [
-                'kategori_aset' => '1',
-                'aset_id' => '1',
-                'tanggal_pinjam' => '2025-07-07',
-                'tanggal_kembali' => '2025-07-14',
-                'keperluan' => 'Peliputan acara pameran UMKM Batam Centre',
-            ],
-            'info_teks' => 'Kamera Sony A7 III tersedia. Durasi peminjaman: 7 hari. Permintaan akan diteruskan ke HR untuk disetujui.',
+            'info_teks' => count($aset_tersedia) > 0
+                ? 'Pilih aset dan isi form di atas. Permintaan akan diteruskan ke HR untuk disetujui.'
+                : 'Saat ini tidak ada aset yang tersedia untuk dipinjam.',
         ]);
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // SIMPAN PENGAJUAN PEMINJAMAN
+    // ══════════════════════════════════════════════════════════════════════
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kategori_aset' => ['required', 'string'],
-            'aset_id' => ['required', 'string'],
-            'tanggal_pinjam' => ['required', 'date'],
+            'kategori_aset'   => ['required', 'string'],
+            'aset_id'         => ['required', 'integer', 'exists:aset,id_aset'],
+            'tanggal_pinjam'  => ['required', 'date', 'after_or_equal:today'],
             'tanggal_kembali' => ['required', 'date', 'after:tanggal_pinjam'],
-            'keperluan' => ['required', 'string', 'max:1000'],
+            'keperluan'       => ['required', 'string', 'max:1000'],
+        ], [
+            'aset_id.exists'                => 'Aset yang dipilih tidak valid.',
+            'tanggal_pinjam.after_or_equal' => 'Tanggal pinjam tidak boleh sebelum hari ini.',
+            'tanggal_kembali.after'         => 'Tanggal kembali harus setelah tanggal pinjam.',
+        ]);
+
+        // Pastikan aset masih tersedia
+        $aset = \App\Models\Aset::where('id_aset', $validated['aset_id'])
+            ->where('status', 'Tersedia')
+            ->first();
+
+        if (!$aset) {
+            return back()
+                ->withInput()
+                ->withErrors(['aset_id' => 'Aset yang dipilih sudah tidak tersedia.']);
+        }
+
+        \App\Models\Peminjaman::create([
+            'pengguna_id'         => Auth::id(),
+            'aset_id'             => $aset->id_aset,
+            'tgl_pengajuan'       => now()->toDateString(),
+            'tgl_pinjam'          => $validated['tanggal_pinjam'],
+            'tgl_rencana_kembali' => $validated['tanggal_kembali'],
+            'tgl_kembali_aktual'  => null,
+            'status'              => 'Menunggu Persetujuan',
+            'keterangan'          => $validated['keperluan'],
         ]);
 
         return redirect()
-            ->route('karyawan.pengajuan')
-            ->with('success', 'Permintaan peminjaman berhasil diajukan dan menunggu persetujuan HR.');
+            ->route('karyawan.status')
+            ->with('success', 'Permintaan peminjaman berhasil diajukan dan sedang menunggu persetujuan HR.');
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // NOTIFIKASI — ambil dari tabel notifikasi berdasarkan user login
+    // ══════════════════════════════════════════════════════════════════════
     public function notifikasi()
     {
-        $notifikasi = $this->notifikasiData();
-        $unreadCount = collect($notifikasi)->where('dibaca', false)->count();
+        $userId = Auth::id();
 
-        return view('karyawan.notifikasi', [
-            'karyawan' => array_merge($this->karyawanData(), [
-                'unread_notifikasi' => $unreadCount,
-            ]),
-            'activeMenu' => 'notifikasi',
-            'notifikasi' => $notifikasi,
-            'unreadCount' => $unreadCount,
-        ]);
+        $notifikasiRaw = Notifikasi::where('pengguna_id', $userId)
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        $notifikasi = $notifikasiRaw->map(fn($n) => [
+            'id'       => $n->id_notifikasi,
+            'type'     => $n->tipe,
+            'kategori' => 'peminjaman',
+            'judul'    => $n->judul,
+            'pesan'    => $n->pesan,
+            'waktu'    => Carbon::parse($n->created_at)->diffForHumans(),
+            'dibaca'   => (bool) $n->dibaca,
+        ])->toArray();
+
+        $unreadCount = $notifikasiRaw->where('dibaca', false)->count();
+
+        $user     = Auth::user();
+        $karyawan = [
+            'nama'              => $user->nama,
+            'role'              => 'Karyawan',
+            'inisial'           => strtoupper(substr($user->nama, 0, 2)),
+            'unread_notifikasi' => $unreadCount,
+        ];
+
+        return view('karyawan.notifikasi', compact('karyawan', 'notifikasi', 'unreadCount')
+            + ['activeMenu' => 'notifikasi']);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // STATUS PEMINJAMAN — ambil dari database berdasarkan user login
+    // ══════════════════════════════════════════════════════════════════════
+    public function status(Request $request)
+    {
+        $userId = Auth::id();
+
+        $tab   = $request->get('tab', 'semua');
+
+        $query = Peminjaman::with(['aset'])
+            ->where('pengguna_id', $userId)
+            ->orderBy('tgl_pengajuan', 'desc');
+
+        if ($tab === 'aktif') {
+            $query->whereIn('status', ['Disetujui', 'Dipinjam']);
+        } elseif ($tab === 'menunggu') {
+            $query->where('status', 'Menunggu Persetujuan');
+        } elseif ($tab === 'selesai') {
+            $query->whereIn('status', ['Dikembalikan', 'Dikembalikan Terlambat', 'Ditolak']);
+        }
+
+        $peminjamanRaw = $query->paginate(10);
+
+        $peminjaman = $peminjamanRaw->map(function ($p) {
+            $batas         = Carbon::parse($p->tgl_rencana_kembali);
+            $terlambat     = !$p->tgl_kembali_aktual && Carbon::now()->gt($batas);
+            $terlambatHari = $terlambat ? Carbon::now()->diffInDays($batas) : 0;
+
+            $statusLabel = match ($p->status) {
+                'Menunggu Persetujuan'   => 'Menunggu',
+                'Disetujui'              => 'Disetujui',
+                'Dipinjam'               => $terlambat ? 'Terlambat ' . $terlambatHari . ' hr' : 'Dipinjam',
+                'Dikembalikan'           => 'Dikembalikan',
+                'Dikembalikan Terlambat' => 'Terlambat',
+                'Ditolak'                => 'Ditolak',
+                default                  => $p->status,
+            };
+
+            $statusType = match (true) {
+                in_array($p->status, ['Menunggu Persetujuan'])   => 'menunggu',
+                in_array($p->status, ['Disetujui'])              => 'disetujui',
+                $p->status === 'Dipinjam' && !$terlambat         => 'aktif',
+                $p->status === 'Dipinjam' && $terlambat          => 'terlambat',
+                in_array($p->status, ['Dikembalikan'])           => 'selesai',
+                in_array($p->status, ['Dikembalikan Terlambat']) => 'terlambat_selesai',
+                in_array($p->status, ['Ditolak'])                => 'ditolak',
+                default                                          => 'lain',
+            };
+
+            return [
+                'id'             => $p->id_peminjaman,
+                'aset'           => $p->aset->nama_aset ?? '-',
+                'kategori'       => $p->aset->kategori ?? '-',
+                'tgl_pengajuan'  => Carbon::parse($p->tgl_pengajuan)->format('d M Y'),
+                'tgl_pinjam'     => $p->tgl_pinjam
+                                        ? Carbon::parse($p->tgl_pinjam)->format('d M Y')
+                                        : '-',
+                'batas_kembali'  => $batas->format('d M Y'),
+                'tgl_kembali'    => $p->tgl_kembali_aktual
+                                        ? Carbon::parse($p->tgl_kembali_aktual)->format('d M Y')
+                                        : '-',
+                'durasi'         => $p->tgl_pinjam && $p->tgl_kembali_aktual
+                                        ? Carbon::parse($p->tgl_pinjam)->diffInDays($p->tgl_kembali_aktual) . ' hari'
+                                        : '-',
+                'keterangan'     => $p->keterangan ?? '-',
+                'status_label'   => $statusLabel,
+                'status_type'    => $statusType,
+                'terlambat_hari' => $terlambatHari,
+            ];
+        });
+
+        $statistik = [
+            'total'    => Peminjaman::where('pengguna_id', $userId)->count(),
+            'aktif'    => Peminjaman::where('pengguna_id', $userId)
+                            ->whereIn('status', ['Disetujui', 'Dipinjam'])->count(),
+            'menunggu' => Peminjaman::where('pengguna_id', $userId)
+                            ->where('status', 'Menunggu Persetujuan')->count(),
+            'selesai'  => Peminjaman::where('pengguna_id', $userId)
+                            ->whereIn('status', ['Dikembalikan', 'Dikembalikan Terlambat'])->count(),
+        ];
+
+        $user     = Auth::user();
+        $karyawan = [
+            'nama'              => $user->nama,
+            'role'              => 'Karyawan',
+            'inisial'           => strtoupper(substr($user->nama, 0, 2)),
+            'unread_notifikasi' => Notifikasi::where('pengguna_id', $userId)->where('dibaca', false)->count(),
+        ];
+
+        return view('karyawan.status', compact(
+            'peminjaman', 'peminjamanRaw', 'statistik', 'karyawan', 'tab'
+        ));
     }
 }

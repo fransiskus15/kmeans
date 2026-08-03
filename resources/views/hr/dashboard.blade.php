@@ -46,11 +46,12 @@
                                 <th>Peminjam</th>
                                 <th>Aset</th>
                                 <th>Cluster</th>
+                                <th>Tgl Ajuan</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($permintaan as $row)
+                            @forelse ($permintaan as $row)
                             <tr>
                                 <td>{{ $row['peminjam'] }}</td>
                                 <td>{{ $row['aset'] }}</td>
@@ -59,14 +60,22 @@
                                         {{ $row['cluster'] }}
                                     </span>
                                 </td>
+                                <td style="font-size:11.5px; color:#9aa0a6;">{{ $row['tgl_ajuan'] }}</td>
                                 <td>
-                                    <a href="{{ route('hr.approval') }}" class="link-tinjau">
+                                    <a href="{{ route('hr.approval', ['id' => $row['id']]) }}" class="link-tinjau">
                                         Tinjau
                                         <i class="bi bi-arrow-up-right"></i>
                                     </a>
                                 </td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    Tidak ada permintaan yang menunggu persetujuan.
+                                </td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>

@@ -8,7 +8,7 @@
     class="sidebar-item {{ ($activeMenu ?? '') === 'pengajuan' ? 'active' : '' }}">
     <i class="bi bi-plus-lg"></i> Ajukan pinjaman
 </a>
-<a href="#"
+<a href="{{ route('karyawan.status') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'status' ? 'active' : '' }}">
     <i class="bi bi-clock"></i> Status permintaan
 </a>
@@ -23,3 +23,28 @@
         <span class="sidebar-badge">{{ $karyawan['unread_notifikasi'] }}</span>
     @endif
 </a>
+
+
+<div class="sidebar-label">AKUN</div>
+
+
+<form action="{{ route('logout') }}" method="POST" style="margin:0;">
+    @csrf
+    <button
+        type="submit"
+        class="sidebar-item"
+        style="
+            width:100%;
+            border:none;
+            background:none;
+            text-align:left;
+            cursor:pointer;
+            font-family:inherit;
+            font-size:inherit;
+            color:#A32D2D;
+        "
+        onclick="return confirm('Anda yakin ingin keluar dari sistem?')"
+    >
+        <i class="bi bi-box-arrow-right"></i> Keluar
+    </button>
+</form>
