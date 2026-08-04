@@ -9,9 +9,9 @@
 @endsection
 
 @section('topbar-actions')
-    <button type="button" class="btn btn-rerun">
-        Jalankan ulang
-        <i class="bi bi-arrow-repeat"></i>
+    <button type="button" class="btn btn-rerun" id="btnJalankanCluster">
+        <span id="btnJalankanText">Jalankan ulang</span>
+        <i class="bi bi-arrow-repeat" id="btnJalankanIcon"></i>
     </button>
 @endsection
 
@@ -34,6 +34,46 @@
         background: #f5f5f3;
         color: #1a1a1a;
         border-color: #b8b8b3;
+    }
+
+    .btn-rerun:disabled {
+        opacity: .6;
+        cursor: not-allowed;
+    }
+
+    .spin {
+        animation: spin-anim 0.8s linear infinite;
+    }
+
+    @keyframes spin-anim {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+
+    .toast-cluster {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 320px;
+        max-width: 420px;
+        border-radius: 10px;
+        padding: 14px 18px;
+        font-size: 13px;
+        box-shadow: 0 4px 16px rgba(0,0,0,.15);
+        display: none;
+    }
+
+    .toast-cluster.success {
+        background: #eafaf1;
+        border: 1px solid #2d9f6f;
+        color: #1a6b47;
+    }
+
+    .toast-cluster.error {
+        background: #fde8e8;
+        border: 1px solid #c0392b;
+        color: #7a2318;
     }
 
     .summary-row {
@@ -291,6 +331,9 @@
 
 @section('content')
 
+    {{-- Toast notifikasi hasil clustering --}}
+    <div id="toastCluster" class="toast-cluster"></div>
+
     {{-- Summary stats --}}
     <div class="summary-row">
         <div class="summary-item">
@@ -336,7 +379,7 @@
                         <div class="elbow-bar-wrap" data-k="{{ $item['k'] }}">
                             @if ($isOptimal)
                                 <div class="elbow-marker" style="left: 50%;">
-                                    <span class="elbow-marker-label">siku K=3</span>
+                                    <span class="elbow-marker-label">siku K={{ $item['k'] }}</span>
                                 </div>
                             @endif
                             <div class="elbow-bar {{ $isOptimal ? 'optimal' : '' }}"
@@ -351,7 +394,7 @@
                 </div>
 
                 <div class="chart-panel-footer">
-                    Titik siku (elbow) terjadi pada K=3
+                    Titik siku (elbow) terjadi pada K={{ $meta['k'] }}
                 </div>
             </div>
         </div>
@@ -384,7 +427,8 @@
                 </div>
 
                 <div class="chart-panel-footer">
-                    Target &gt; 50% — K=3 = 68% <span class="good"><i class="bi bi-check-circle-fill"></i></span>
+                    Target &gt; 50% — K={{ $meta['k'] }} = {{ $meta['silhouette'] }}
+                    <span class="good"><i class="bi bi-check-circle-fill"></i></span>
                 </div>
             </div>
         </div>
@@ -422,7 +466,6 @@
                                 <th>Nama</th>
                                 <th>Cluster</th>
                                 <th>F3 Terlambat</th>
-                                <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -435,16 +478,12 @@
                                         </span>
                                     </td>
                                     <td>{{ $row['terlambat'] }}</td>
-                                    <td>
-                                        <a href="{{ route('clustering.detail', $row['id']) }}" class="link-tinjau">
-                                            Detail
-                                            <i class="bi bi-arrow-up-right"></i>
-                                        </a>
-                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">Belum ada data cluster.</td>
+                                    <td colspan="3" class="text-center text-muted py-3">
+                                        Belum ada data cluster. Klik "Jalankan ulang" untuk memulai analisis.
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -458,3 +497,55 @@
     </div>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const btn      = document.getElementById('btnJalankanCluster');
+    const btnText  = document.getElementById('btnJalankanText');
+    const btnIcon  = document.getElementById('btnJalankanIcon');
+    const toast    = document.getElementById('toastCluster');
+
+    function showToast(message, type) {
+        toast.textContent = message;
+        toast.className   = 'toast-cluster ' + type;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 6000);
+    }
+
+    btn.addEventListener('click', function () {
+        // Ubah tombol ke status loading
+        btn.disabled = true;
+        btnText.textContent = 'Menjalankan...';
+        btnIcon.classList.add('spin');
+
+        fetch('{{ route("admin.cluster.jalankan") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            },
+        })
+        .then(response => response.json().then(data => ({ status: response.status, body: data })))
+        .then(({ status, body }) => {
+            if (status === 200 && body.success) {
+                showToast('✓ ' + body.message, 'success');
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                showToast('✕ ' + (body.message || 'Clustering gagal dijalankan.'), 'error');
+                btn.disabled = false;
+                btnText.textContent = 'Jalankan ulang';
+                btnIcon.classList.remove('spin');
+            }
+        })
+        .catch(err => {
+            showToast('✕ Terjadi kesalahan jaringan: ' + err.message, 'error');
+            btn.disabled = false;
+            btnText.textContent = 'Jalankan ulang';
+            btnIcon.classList.remove('spin');
+        });
+    });
+});
+</script>
+@endpush
