@@ -519,12 +519,21 @@ document.addEventListener('DOMContentLoaded', function () {
         btnText.textContent = 'Menjalankan...';
         btnIcon.classList.add('spin');
 
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (!csrfMeta) {
+            showToast('✕ CSRF token tidak ditemukan. Pastikan layout memiliki <meta name="csrf-token">.', 'error');
+            btn.disabled = false;
+            btnText.textContent = 'Jalankan ulang';
+            btnIcon.classList.remove('spin');
+            return;
+        }
+
         fetch('{{ route("admin.cluster.jalankan") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-CSRF-TOKEN': csrfMeta.getAttribute('content'),
             },
         })
         .then(response => response.json().then(data => ({ status: response.status, body: data })))

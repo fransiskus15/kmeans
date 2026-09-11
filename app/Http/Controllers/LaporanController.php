@@ -7,21 +7,9 @@ use App\Models\Peminjaman;
 use App\Models\Aset;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\LaporanPeminjamanExport;
 
 class LaporanController extends Controller
 {
-    /**
-     * CATATAN: Middleware 'auth' dan 'role:admin_aset' TIDAK didefinisikan
-     * di sini karena Laravel 11+ menghapus method middleware() dari
-     * base Controller. Middleware didefinisikan di routes/web.php, contoh:
-     *
-     *   Route::middleware(['auth', 'role:admin_aset'])->group(function () {
-     *       Route::get('/laporan', [LaporanController::class, 'index']);
-     *   });
-     */
-
     // ══════════════════════════════════════════════════════════════════════
     // INDEX — Tampilkan halaman laporan dengan filter
     // ══════════════════════════════════════════════════════════════════════
@@ -37,8 +25,7 @@ class LaporanController extends Controller
 
         // ── Query utama peminjaman dengan eager loading ──────────────────
         $query = Peminjaman::with(['peminjam', 'aset', 'approval'])
-            ->whereBetween('tgl_pengajuan', [$periodeFrom, $periodeTo])
-            ->whereNotNull('tgl_kembali_aktual'); // hanya yang sudah selesai
+            ->whereBetween('tgl_pengajuan', [$periodeFrom, $periodeTo]);
 
         // Filter kategori aset
         if ($kategori !== 'all') {
@@ -51,7 +38,8 @@ class LaporanController extends Controller
         if ($status === 'terlambat') {
             $query->whereRaw('tgl_kembali_aktual > tgl_rencana_kembali');
         } elseif ($status === 'tepat_waktu') {
-            $query->whereRaw('tgl_kembali_aktual <= tgl_rencana_kembali');
+            $query->whereRaw('tgl_kembali_aktual <= tgl_rencana_kembali')
+                  ->whereNotNull('tgl_kembali_aktual');
         } elseif ($status === 'menunggu') {
             $query->whereNull('tgl_kembali_aktual');
         }
@@ -66,7 +54,7 @@ class LaporanController extends Controller
             $allQuery->whereHas('aset', fn($q) => $q->where('kategori', $kategori));
         }
 
-        $allData       = $allQuery->get();
+        $allData        = $allQuery->get();
         $totalTransaksi = $allData->count();
 
         $terlambat = $allData->filter(function ($p) {
@@ -110,22 +98,21 @@ class LaporanController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // EKSPOR PDF
+    // EKSPOR PDF — menggunakan barryvdh/laravel-dompdf
     // ══════════════════════════════════════════════════════════════════════
     public function exportPdf(Request $request)
     {
-        $filter = session('laporan_filter', [
-            'periode_from' => Carbon::now()->startOfMonth()->format('Y-m-d'),
-            'periode_to'   => Carbon::now()->format('Y-m-d'),
-            'kategori'     => 'all',
-            'status'       => 'all',
-        ]);
+        $filter = [
+            'periode_from' => $request->get('periode_from', session('laporan_filter.periode_from', Carbon::now()->startOfMonth()->format('Y-m-d'))),
+            'periode_to'   => $request->get('periode_to',   session('laporan_filter.periode_to',   Carbon::now()->format('Y-m-d'))),
+            'kategori'     => $request->get('kategori',     session('laporan_filter.kategori',     'all')),
+            'status'       => $request->get('status',       session('laporan_filter.status',       'all')),
+        ];
 
         $peminjaman = $this->getFilteredData($filter);
+        $statistik  = $this->hitungStatistik($peminjaman);
 
-        $statistik = $this->hitungStatistik($peminjaman);
-
-        $pdf = PDF::loadView('laporan.pdf', [
+        $pdf = Pdf::loadView('laporan.pdf', [
             'peminjaman' => $peminjaman,
             'statistik'  => $statistik,
             'filter'     => $filter,
@@ -140,22 +127,97 @@ class LaporanController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // EKSPOR EXCEL
+    // EKSPOR EXCEL — CSV streaming (tidak butuh library Excel eksternal)
+    // File CSV bisa langsung dibuka Excel dengan format kolom rapi
     // ══════════════════════════════════════════════════════════════════════
     public function exportExcel(Request $request)
     {
-        $filter = session('laporan_filter', [
-            'periode_from' => Carbon::now()->startOfMonth()->format('Y-m-d'),
-            'periode_to'   => Carbon::now()->format('Y-m-d'),
-            'kategori'     => 'all',
-            'status'       => 'all',
-        ]);
+        $filter = [
+            'periode_from' => $request->get('periode_from', session('laporan_filter.periode_from', Carbon::now()->startOfMonth()->format('Y-m-d'))),
+            'periode_to'   => $request->get('periode_to',   session('laporan_filter.periode_to',   Carbon::now()->format('Y-m-d'))),
+            'kategori'     => $request->get('kategori',     session('laporan_filter.kategori',     'all')),
+            'status'       => $request->get('status',       session('laporan_filter.status',       'all')),
+        ];
+
+        $peminjaman = $this->getFilteredData($filter);
+        $statistik  = $this->hitungStatistik($peminjaman);
 
         $filename = 'laporan_peminjaman_'
                    . $filter['periode_from'] . '_sd_'
-                   . $filter['periode_to'] . '.xlsx';
+                   . $filter['periode_to'] . '.csv';
 
-        return Excel::download(new LaporanPeminjamanExport($filter), $filename);
+        $headers = [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Pragma'              => 'no-cache',
+            'Cache-Control'       => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires'             => '0',
+        ];
+
+        $callback = function () use ($peminjaman, $statistik, $filter) {
+            $out = fopen('php://output', 'w');
+
+            // BOM agar Excel Windows bisa baca UTF-8 dengan benar
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            // ── Info laporan ──────────────────────────────────────────────
+            fputcsv($out, ['LAPORAN PEMINJAMAN ASET']);
+            fputcsv($out, ['Periode', $filter['periode_from'] . ' s/d ' . $filter['periode_to']]);
+            fputcsv($out, ['Kategori', $filter['kategori'] === 'all' ? 'Semua' : $filter['kategori']]);
+            fputcsv($out, ['Status', $filter['status'] === 'all' ? 'Semua' : ucfirst(str_replace('_', ' ', $filter['status']))]);
+            fputcsv($out, ['Digenerate', Carbon::now()->format('d/m/Y H:i')]);
+            fputcsv($out, []);
+
+            // ── Statistik ─────────────────────────────────────────────────
+            fputcsv($out, ['RINGKASAN STATISTIK']);
+            fputcsv($out, ['Total Transaksi', 'Tepat Waktu', 'Terlambat', 'Tingkat Terlambat']);
+            fputcsv($out, [
+                $statistik['total'],
+                $statistik['tepat_waktu'],
+                $statistik['terlambat'],
+                $statistik['pct_terlambat'] . '%',
+            ]);
+            fputcsv($out, []);
+
+            // ── Header tabel ──────────────────────────────────────────────
+            fputcsv($out, [
+                'No', 'Peminjam', 'Divisi', 'Aset', 'Kategori Aset',
+                'Tgl Pengajuan', 'Tgl Pinjam', 'Batas Kembali',
+                'Tgl Kembali Aktual', 'Durasi (hari)', 'Status',
+            ]);
+
+            // ── Baris data ────────────────────────────────────────────────
+            foreach ($peminjaman as $i => $item) {
+                $terlambat = $item->tgl_kembali_aktual &&
+                    Carbon::parse($item->tgl_kembali_aktual)
+                        ->gt(Carbon::parse($item->tgl_rencana_kembali));
+
+                $statusLabel = $terlambat ? 'Terlambat'
+                    : ($item->tgl_kembali_aktual ? 'Tepat Waktu' : 'Belum Kembali');
+
+                $durasi = ($item->tgl_pinjam && $item->tgl_kembali_aktual)
+                    ? Carbon::parse($item->tgl_pinjam)->diffInDays(Carbon::parse($item->tgl_kembali_aktual))
+                    : '-';
+
+                fputcsv($out, [
+                    $i + 1,
+                    $item->peminjam->nama ?? '-',
+                    $item->peminjam->divisi ?? '-',
+                    $item->aset->nama_aset ?? '-',
+                    $item->aset->kategori ?? '-',
+                    $item->tgl_pengajuan ? Carbon::parse($item->tgl_pengajuan)->format('d/m/Y') : '-',
+                    $item->tgl_pinjam ? Carbon::parse($item->tgl_pinjam)->format('d/m/Y') : '-',
+                    $item->tgl_rencana_kembali ? Carbon::parse($item->tgl_rencana_kembali)->format('d/m/Y') : '-',
+                    $item->tgl_kembali_aktual ? Carbon::parse($item->tgl_kembali_aktual)->format('d/m/Y') : '-',
+                    $durasi,
+                    $statusLabel,
+                ]);
+            }
+
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -178,7 +240,8 @@ class LaporanController extends Controller
         if ($filter['status'] === 'terlambat') {
             $query->whereRaw('tgl_kembali_aktual > tgl_rencana_kembali');
         } elseif ($filter['status'] === 'tepat_waktu') {
-            $query->whereRaw('tgl_kembali_aktual <= tgl_rencana_kembali');
+            $query->whereRaw('tgl_kembali_aktual <= tgl_rencana_kembali')
+                  ->whereNotNull('tgl_kembali_aktual');
         }
 
         return $query->orderBy('tgl_pengajuan', 'desc')->get();

@@ -9,9 +9,15 @@ use App\Models\Notifikasi;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class AdminController extends Controller
 {
+    // ── Konstanta konfigurasi ──────────────────────────────────────────────
+    private const MIN_PEMINJAM  = 5;   // minimum peminjam unik untuk clustering
+    private const MIN_TRANSAKSI = 3;   // minimum transaksi selesai per peminjam
+    private const PYTHON_API    = 'http://127.0.0.1:5000'; // URL Flask API
+
     // ══════════════════════════════════════════════════════════════════════
     // DASHBOARD ADMIN ASET (Gambar 3.9)
     // Disesuaikan dengan struktur variabel view admin.dashboard yang sudah ada
@@ -36,8 +42,8 @@ class AdminController extends Controller
             ->get()
             ->map(function ($p) {
                 return [
-                    'peminjam'      => $p->peminjam->nama,
-                    'aset'          => $p->aset->nama_aset,
+                    'peminjam'      => $p->peminjam?->nama ?? '-',
+                    'aset'          => $p->aset?->nama_aset ?? '-',
                     'batas_kembali' => Carbon::parse($p->tgl_rencana_kembali)->format('d M Y'),
                     'status'        => $p->isTerlambat() ? 'Terlambat' : 'Aktif',
                 ];
@@ -193,11 +199,38 @@ class AdminController extends Controller
     // ══════════════════════════════════════════════════════════════════════
     public function peminjaman(Request $request)
     {
-        // ── Ambil semua peminjaman aktif + yang sudah dikembalikan (10 terakhir) ──
-        $rawList = Peminjaman::with(['peminjam', 'aset', 'peminjam.profilCluster'])
-            ->whereIn('status', ['Disetujui', 'Dipinjam', 'Dikembalikan', 'Dikembalikan Terlambat'])
+        // ── Filter tanggal & peminjam ────────────────────────────────────────
+        $tglDari          = $request->input('tgl_dari');
+        $tglSampai        = $request->input('tgl_sampai');
+        $selectedPeminjam = $request->input('peminjam');
+
+        // ── Daftar nama peminjam unik untuk dropdown filter ─────────────────
+        $peminjamList = \App\Models\Pengguna::whereHas('peminjaman', function ($q) {
+                $q->whereIn('status', ['Disetujui', 'Dipinjam', 'Dikembalikan', 'Dikembalikan Terlambat']);
+            })
+            ->orderBy('nama')
+            ->pluck('nama', 'id_pengguna');
+
+        // ── Ambil semua peminjaman aktif + yang sudah dikembalikan ──────────
+        $query = Peminjaman::with(['peminjam', 'aset', 'peminjam.profilCluster'])
+            ->whereIn('status', ['Disetujui', 'Dipinjam', 'Dikembalikan', 'Dikembalikan Terlambat']);
+
+        if ($tglDari) {
+            $query->whereDate('tgl_rencana_kembali', '>=', $tglDari);
+        }
+        if ($tglSampai) {
+            $query->whereDate('tgl_rencana_kembali', '<=', $tglSampai);
+        }
+        if ($selectedPeminjam) {
+            $query->whereHas('peminjam', fn($q) => $q->where('nama', 'like', '%' . $selectedPeminjam . '%'));
+        }
+
+        // Data yang perlu dikonfirmasi pengembaliannya ditampilkan paling atas
+        $rawList = $query
+            ->orderByRaw("CASE WHEN status IN ('Disetujui','Dipinjam') THEN 0 ELSE 1 END")
             ->orderBy('tgl_rencana_kembali')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
         // Format ke array yang sesuai blade
         $peminjaman = $rawList->map(function ($p) {
@@ -217,6 +250,7 @@ class AdminController extends Controller
                 'status'         => in_array($p->status, ['Dikembalikan', 'Dikembalikan Terlambat'])
                                         ? 'Dikembalikan'
                                         : $p->status,
+                'status_raw'     => $p->status,  // status asli dari DB untuk logika tombol aksi
                 'terlambat_hari' => $terlambatHari,
             ];
         });
@@ -250,31 +284,39 @@ class AdminController extends Controller
             }
         }
 
-        return view('admin.peminjaman', compact('peminjaman', 'selected', 'rawList'));
+        return view('admin.peminjaman', compact('peminjaman', 'selected', 'rawList', 'tglDari', 'tglSampai', 'peminjamList', 'selectedPeminjam'));
     }
 
-    // Konfirmasi pengambilan aset (setelah HR approve)
+    // Konfirmasi pengambilan aset (setelah HR approve → Admin konfirmasi fisik diambil)
     public function konfirmasiAmbil($id)
     {
-        $peminjaman = Peminjaman::findOrFail($id);
+        $peminjaman = Peminjaman::with('aset')->findOrFail($id);
 
         if ($peminjaman->status !== 'Disetujui') {
-            return back()->with('error', 'Peminjaman ini belum disetujui HR.');
+            return back()->with('error', 'Peminjaman ini belum disetujui HR atau sudah diproses.');
         }
 
-        $peminjaman->update(['status' => 'Dipinjam']);
-        $peminjaman->aset->update(['status' => 'Dipinjam']);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($peminjaman) {
+            // Update peminjaman: set status Dipinjam + catat tanggal pengambilan aktual
+            $peminjaman->update([
+                'status'    => 'Dipinjam',
+                'tgl_pinjam'=> now()->toDateString(),
+            ]);
+
+            // Update status aset → Dipinjam
+            $peminjaman->aset->update(['status' => 'Dipinjam']);
+        });
 
         // Kirim notifikasi ke peminjam
         Notifikasi::create([
             'pengguna_id'   => $peminjaman->pengguna_id,
             'peminjaman_id' => $peminjaman->id_peminjaman,
             'judul'         => 'Pengambilan aset dikonfirmasi',
-            'pesan'         => "Aset {$peminjaman->aset->nama_aset} telah Anda ambil pada " . now()->format('d M Y') . '.',
+            'pesan'         => "Aset {$peminjaman->aset->nama_aset} telah Anda ambil pada " . now()->format('d M Y') . '. Harap dikembalikan sesuai jadwal.',
             'tipe'          => 'pengambilan',
         ]);
 
-        return back()->with('success', 'Pengambilan aset berhasil dikonfirmasi.');
+        return back()->with('success', "Pengambilan aset \"{$peminjaman->aset->nama_aset}\" berhasil dikonfirmasi. Status aset sekarang: Dipinjam.");
     }
 
     // Konfirmasi pengembalian aset
@@ -349,7 +391,7 @@ class AdminController extends Controller
             ->first();
 
         $meta = [
-            'k'          => $logTerakhir->k_optimal ?? 3,
+            'k'          => $logTerakhir?->k_optimal ?? 3,
             'silhouette' => $logTerakhir
                                 ? ($logTerakhir->silhouette_persen ?? round($logTerakhir->silhouette_score * 100)) . '%'
                                 : '-',
@@ -374,9 +416,11 @@ class AdminController extends Controller
         }
 
         // Ambil nama cluster dari profil_cluster
-        $namaCluster = ProfilCluster::selectRaw('label_cluster, MAX(nama_cluster) as nama_cluster')
-            ->groupBy('label_cluster')
-            ->get()
+        // Menggunakan pluck + unique untuk menghindari konflik alias kolom
+        // di MySQL ONLY_FULL_GROUP_BY mode
+        $namaCluster = ProfilCluster::orderBy('label_cluster')
+            ->get(['label_cluster', 'nama_cluster'])
+            ->unique('label_cluster')
             ->keyBy('label_cluster');
 
         $total = $totalLog ?: ProfilCluster::count();

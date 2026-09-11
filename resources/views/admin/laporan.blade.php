@@ -61,12 +61,26 @@
                         <i class="bi bi-funnel"></i> Terapkan
                     </button>
 
-                    <a href="{{ route('laporan.pdf') }}" class="btn btn-outline-dark" target="_blank">
-                        <i class="bi bi-file-earmark-pdf"></i> Ekspor PDF
+                    {{-- Ekspor PDF: buka tab baru --}}
+                    <a href="{{ route('laporan.pdf', array_filter([
+                            'periode_from' => $periodeFrom,
+                            'periode_to'   => $periodeTo,
+                            'kategori'     => $kategori !== 'all' ? $kategori : null,
+                            'status'       => $status !== 'all' ? $status : null,
+                        ])) }}"
+                        class="btn btn-danger" target="_blank">
+                        <i class="bi bi-file-earmark-pdf-fill me-1"></i> Ekspor PDF
                     </a>
 
-                    <a href="{{ route('laporan.excel') }}" class="btn btn-outline-dark">
-                        <i class="bi bi-file-earmark-excel"></i> Ekspor Excel
+                    {{-- Ekspor Excel (CSV) --}}
+                    <a href="{{ route('laporan.excel', array_filter([
+                            'periode_from' => $periodeFrom,
+                            'periode_to'   => $periodeTo,
+                            'kategori'     => $kategori !== 'all' ? $kategori : null,
+                            'status'       => $status !== 'all' ? $status : null,
+                        ])) }}"
+                        class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel-fill me-1"></i> Ekspor Excel
                     </a>
 
                 </div>

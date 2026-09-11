@@ -228,24 +228,32 @@ class KaryawanController extends Controller
         // Pastikan aset masih tersedia
         $aset = \App\Models\Aset::where('id_aset', $validated['aset_id'])
             ->where('status', 'Tersedia')
+            ->lockForUpdate()
             ->first();
 
         if (!$aset) {
             return back()
                 ->withInput()
-                ->withErrors(['aset_id' => 'Aset yang dipilih sudah tidak tersedia.']);
+                ->withErrors(['aset_id' => 'Aset yang dipilih sudah tidak tersedia atau sedang dipesan oleh karyawan lain.']);
         }
 
-        \App\Models\Peminjaman::create([
-            'pengguna_id'         => Auth::id(),
-            'aset_id'             => $aset->id_aset,
-            'tgl_pengajuan'       => now()->toDateString(),
-            'tgl_pinjam'          => $validated['tanggal_pinjam'],
-            'tgl_rencana_kembali' => $validated['tanggal_kembali'],
-            'tgl_kembali_aktual'  => null,
-            'status'              => 'Menunggu Persetujuan',
-            'keterangan'          => $validated['keperluan'],
-        ]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($aset, $validated) {
+            // Buat record peminjaman
+            \App\Models\Peminjaman::create([
+                'pengguna_id'         => Auth::id(),
+                'aset_id'             => $aset->id_aset,
+                'tgl_pengajuan'       => now()->toDateString(),
+                'tgl_pinjam'          => $validated['tanggal_pinjam'],
+                'tgl_rencana_kembali' => $validated['tanggal_kembali'],
+                'tgl_kembali_aktual'  => null,
+                'status'              => 'Menunggu Persetujuan',
+                'keterangan'          => $validated['keperluan'],
+            ]);
+
+            // Langsung tandai aset sebagai "Dipesan" agar tidak bisa diajukan
+            // oleh karyawan lain selama menunggu persetujuan HR
+            $aset->update(['status' => 'Dipesan']);
+        });
 
         return redirect()
             ->route('karyawan.status')

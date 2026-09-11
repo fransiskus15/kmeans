@@ -51,13 +51,12 @@ Route::middleware(['auth', 'role:admin_aset'])->group(function () {
     Route::post('/admin/aset',         [AdminController::class, 'simpanAset'])->name('admin.aset.simpan');
     Route::put ('/admin/aset/{id}',    [AdminController::class, 'updateAset'])->name('admin.aset.update');
     Route::delete('/admin/aset/{id}',  [AdminController::class, 'hapusAset'])->name('admin.aset.hapus');
-    Route::get ('/admin/peminjaman',   [AdminController::class, 'peminjaman'])->name('admin.peminjaman');
-    Route::get ('/admin/laporan',      [AdminController::class, 'laporan'])->name('admin.laporan');
-    Route::get ('/admin/cluster',      [AdminController::class, 'cluster'])->name('admin.cluster');
-    Route::post('/admin/peminjaman/konfirmasi', [AdminController::class, 'konfirmasiKembali'])->name('admin.peminjaman.konfirmasi');
-     // Analisis K-Means Clustering
-    Route::get ('/admin/cluster',           [AdminController::class, 'cluster'])->name('admin.cluster');
-    Route::post('/admin/cluster/jalankan',  [AdminController::class, 'jalankanCluster'])->name('admin.cluster.jalankan');
+    Route::get ('/admin/peminjaman',                [AdminController::class, 'peminjaman'])->name('admin.peminjaman');
+    Route::post('/admin/peminjaman/ambil/{id}',     [AdminController::class, 'konfirmasiAmbil'])->name('admin.peminjaman.ambil');
+    Route::post('/admin/peminjaman/konfirmasi',     [AdminController::class, 'konfirmasiKembali'])->name('admin.peminjaman.konfirmasi');
+    Route::get ('/admin/laporan',                   [AdminController::class, 'laporan'])->name('admin.laporan');
+    Route::get ('/admin/cluster',                   [AdminController::class, 'cluster'])->name('admin.cluster');
+    Route::post('/admin/cluster/jalankan',          [AdminController::class, 'jalankanCluster'])->name('admin.cluster.jalankan');
 
 });
 

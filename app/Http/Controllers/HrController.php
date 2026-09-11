@@ -235,6 +235,13 @@ class HrController extends Controller
             'catatan'       => 'nullable|string|max:500',
         ]);
 
+        // Catatan wajib diisi saat menolak (sesuai FR-05)
+        if ($request->keputusan === 'tolak' && empty(trim($request->catatan ?? ''))) {
+            return back()
+                ->withErrors(['catatan' => 'Catatan alasan wajib diisi saat menolak permintaan.'])
+                ->withInput();
+        }
+
         $peminjaman = Peminjaman::with(['aset', 'peminjam.profilCluster'])
             ->findOrFail($request->peminjaman_id);
 
@@ -243,31 +250,45 @@ class HrController extends Controller
                 ->with('error', 'Peminjaman ini sudah diproses sebelumnya.');
         }
 
-        $hrUserId = Auth::id();
+        $hrUserId       = Auth::id();
         $clusterSaatIni = $peminjaman->peminjam?->profilCluster?->label_cluster ?? null;
 
         if ($request->keputusan === 'setujui') {
-            // Update status peminjaman
-            $peminjaman->update([
-                'status'     => 'Disetujui',
-                'keterangan' => $peminjaman->keterangan .
-                                ($request->filled('catatan') ? ' [HR: ' . $request->catatan . ']' : ''),
-            ]);
 
-            // Ubah status aset menjadi Dipinjam (tidak tersedia)
-            if ($peminjaman->aset) {
-                $peminjaman->aset->update(['status' => 'Dipinjam']);
+            // ── Cek ulang status aset — saat pengajuan sudah di-set ke "Dipesan" ──
+            // Jika status bukan "Dipesan", berarti ada anomali (misal sudah diproses manual)
+            if (!in_array($peminjaman->aset->status, ['Dipesan', 'Tersedia'])) {
+                return redirect()->route('hr.approval')
+                    ->with('error', "Tidak dapat menyetujui — aset {$peminjaman->aset->nama_aset} "
+                        . "sudah tidak tersedia (status saat ini: {$peminjaman->aset->status}). "
+                        . "Kemungkinan sudah disetujui/dipesan untuk peminjam lain.");
             }
 
+            DB::transaction(function () use ($peminjaman, $request) {
+                // Update status peminjaman
+                $peminjaman->update([
+                    'status'     => 'Disetujui',
+                    'keterangan' => $peminjaman->keterangan .
+                                    ($request->filled('catatan') ? ' [HR: ' . $request->catatan . ']' : ''),
+                ]);
+
+                // Aset tetap "Dipesan" — sudah di-set saat karyawan mengajukan.
+                // Akan berubah ke "Dipinjam" setelah Admin Aset konfirmasi pengambilan.
+                $peminjaman->aset->update(['status' => 'Dipesan']);
+            });
+
             $keputusanLabel = 'Disetujui';
-            $message        = 'Peminjaman berhasil disetujui. Status aset telah diubah menjadi Dipinjam.';
+            $message        = 'Peminjaman berhasil disetujui. Aset kini berstatus "Dipesan" — '
+                             . 'menunggu konfirmasi pengambilan oleh Admin Aset.';
+
         } else {
-            // Update status peminjaman
             $peminjaman->update([
                 'status'     => 'Ditolak',
-                'keterangan' => $peminjaman->keterangan .
-                                ' [Ditolak HR: ' . ($request->catatan ?: 'Tidak ada catatan') . ']',
+                'keterangan' => $peminjaman->keterangan . ' [Ditolak HR: ' . $request->catatan . ']',
             ]);
+
+            // Saat ditolak: kembalikan aset ke "Tersedia" agar bisa diajukan karyawan lain
+            $peminjaman->aset->update(['status' => 'Tersedia']);
 
             $keputusanLabel = 'Ditolak';
             $message        = 'Peminjaman telah ditolak.';
@@ -277,17 +298,18 @@ class HrController extends Controller
         Approval::updateOrCreate(
             ['peminjaman_id' => $peminjaman->id_peminjaman],
             [
-                'pengguna_id'          => $hrUserId,
-                'keputusan'            => $keputusanLabel,
-                'catatan'              => $request->catatan ?? null,
-                'tgl_approval'         => now(),
-                'cluster_saat_approval'=> $clusterSaatIni,
+                'pengguna_id'           => $hrUserId,
+                'keputusan'             => $keputusanLabel,
+                'catatan'               => $request->catatan ?? null,
+                'tgl_approval'          => now(),
+                'cluster_saat_approval' => $clusterSaatIni,
             ]
         );
 
         return redirect()->route('hr.approval')
             ->with('success', $message);
     }
+
 
     // ══════════════════════════════════════════════════════════════════════
     // HELPER — data user HR dari auth
