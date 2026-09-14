@@ -389,4 +389,50 @@ class KaryawanController extends Controller
             'peminjaman', 'peminjamanRaw', 'statistik', 'karyawan', 'tab'
         ));
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // RIWAYAT PEMINJAMAN — semua peminjaman milik karyawan yang login
+    // ══════════════════════════════════════════════════════════════════════
+    public function riwayat(Request $request)
+    {
+        $userId = Auth::id();
+
+        $query = Peminjaman::with(['aset'])
+            ->where('pengguna_id', $userId)
+            ->orderBy('tgl_pengajuan', 'desc');
+
+        // Filter status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter pencarian nama aset
+        if ($request->filled('cari')) {
+            $cari = $request->cari;
+            $query->whereHas('aset', fn($q) => $q->where('nama_aset', 'like', "%$cari%"));
+        }
+
+        // Filter bulan/tahun
+        if ($request->filled('bulan')) {
+            [$tahun, $bln] = explode('-', $request->bulan);
+            $query->whereYear('tgl_pengajuan', $tahun)->whereMonth('tgl_pengajuan', $bln);
+        }
+
+        $riwayat = $query->paginate(10)->withQueryString();
+
+        // Ringkasan statistik milik karyawan ini
+        $base = Peminjaman::where('pengguna_id', $userId);
+        $ringkasan = [
+            'total'         => (clone $base)->count(),
+            'menunggu'      => (clone $base)->where('status', 'Menunggu Persetujuan')->count(),
+            'aktif'         => (clone $base)->whereIn('status', ['Disetujui', 'Dipinjam'])->count(),
+            'dikembalikan'  => (clone $base)->whereIn('status', ['Dikembalikan', 'Dikembalikan Terlambat'])->count(),
+            'ditolak'       => (clone $base)->where('status', 'Ditolak')->count(),
+        ];
+
+        $karyawan = $this->karyawanData();
+
+        return view('karyawan.riwayat', compact('karyawan', 'riwayat', 'ringkasan')
+            + ['activeMenu' => 'riwayat']);
+    }
 }

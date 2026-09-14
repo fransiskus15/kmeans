@@ -312,6 +312,52 @@ class HrController extends Controller
 
 
     // ══════════════════════════════════════════════════════════════════════
+    // RIWAYAT PEMINJAMAN — semua peminjaman yang sudah diproses
+    // ══════════════════════════════════════════════════════════════════════
+    public function riwayat(Request $request)
+    {
+        $query = Peminjaman::with(['peminjam', 'aset', 'approval', 'peminjam.profilCluster'])
+            ->whereNotIn('status', ['Menunggu Persetujuan'])
+            ->orderBy('tgl_pengajuan', 'desc');
+
+        // Filter status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Pencarian nama peminjam atau nama aset
+        if ($request->filled('cari')) {
+            $cari = $request->cari;
+            $query->where(function ($q) use ($cari) {
+                $q->whereHas('peminjam', fn($qq) => $qq->where('nama', 'like', "%$cari%"))
+                  ->orWhereHas('aset', fn($qq) => $qq->where('nama_aset', 'like', "%$cari%"));
+            });
+        }
+
+        // Filter bulan/tahun
+        if ($request->filled('bulan')) {
+            [$tahun, $bln] = explode('-', $request->bulan);
+            $query->whereYear('tgl_pengajuan', $tahun)->whereMonth('tgl_pengajuan', $bln);
+        }
+
+        $riwayat = $query->paginate(15)->withQueryString();
+
+        // Ringkasan statistik riwayat
+        $ringkasan = [
+            'total'       => Peminjaman::whereNotIn('status', ['Menunggu Persetujuan'])->count(),
+            'disetujui'   => Peminjaman::where('status', 'Disetujui')->count(),
+            'dipinjam'    => Peminjaman::where('status', 'Dipinjam')->count(),
+            'dikembalikan'=> Peminjaman::where('status', 'Dikembalikan')->count(),
+            'ditolak'     => Peminjaman::where('status', 'Ditolak')->count(),
+        ];
+
+        $hr = $this->hrData();
+
+        return view('hr.riwayat', compact('hr', 'riwayat', 'ringkasan')
+            + ['activeMenu' => 'riwayat']);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // HELPER — data user HR dari auth
     // ══════════════════════════════════════════════════════════════════════
     private function hrData(): array

@@ -12,11 +12,8 @@
     class="sidebar-item {{ ($activeMenu ?? '') === 'cluster' ? 'active' : '' }}">
     <i class="bi bi-pie-chart"></i> Analisis cluster
 </a> --}}
-<a href="#"
-    class="sidebar-item {{ ($activeMenu ?? '') === 'pantau' ? 'active' : '' }}">
-    <i class="bi bi-eye"></i> Pantau aset
-</a>
-<a href="#"
+
+<a href="{{ route('hr.riwayat') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'riwayat' ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Riwayat
 </a>

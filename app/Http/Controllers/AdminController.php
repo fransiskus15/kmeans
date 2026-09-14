@@ -512,6 +512,60 @@ class AdminController extends Controller
         ));
     }  
 
+    public function notifikasi(Request $request)
+{
+    $adminId = auth()->user()->id_pengguna;
+ 
+    $query = Notifikasi::with('peminjaman.peminjam', 'peminjaman.aset')
+        ->where('pengguna_id', $adminId)
+        ->orderBy('created_at', 'desc');
+ 
+    // Filter tab: semua / belum dibaca
+    if ($request->get('filter') === 'belum_dibaca') {
+        $query->where('dibaca', false);
+    }
+ 
+    $notifikasiList = $query->paginate(15);
+ 
+    $jumlahBelumDibaca = Notifikasi::where('pengguna_id', $adminId)
+        ->where('dibaca', false)
+        ->count();
+ 
+    $notifikasi = $notifikasiList->map(function ($n) {
+        return [
+            'id'      => $n->id_notifikasi,
+            'judul'   => $n->judul,
+            'pesan'   => $n->pesan,
+            'tipe'    => $n->tipe,
+            'dibaca'  => $n->dibaca,
+            'waktu'   => Carbon::parse($n->created_at)->diffForHumans(),
+        ];
+    });
+ 
+    return view('admin.notifikasi', compact('notifikasi', 'notifikasiList', 'jumlahBelumDibaca'));
+}
+ 
+// Tandai satu notifikasi sebagai dibaca
+public function tandaiDibaca($id)
+{
+    $notif = Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
+        ->findOrFail($id);
+ 
+    $notif->update(['dibaca' => true, 'dibaca_pada' => now()]);
+ 
+    return back();
+}
+ 
+// Tandai SEMUA notifikasi sebagai dibaca
+public function tandaiSemuaDibaca()
+{
+    Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
+        ->where('dibaca', false)
+        ->update(['dibaca' => true, 'dibaca_pada' => now()]);
+ 
+    return back()->with('success', 'Semua notifikasi telah ditandai sebagai dibaca.');
+}
+
     // ══════════════════════════════════════════════════════════════════════
     // JALANKAN CLUSTERING — dipanggil tombol "Jalankan Cluster"
     // Menghitung F1-F5 dari peminjaman, kirim ke Flask, simpan hasil

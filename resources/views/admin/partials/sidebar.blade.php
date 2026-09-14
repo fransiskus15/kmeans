@@ -10,6 +10,10 @@
     class="sidebar-item {{ ($activeMenu ?? '') === 'peminjaman' ? 'active' : '' }}">
     <i class="bi bi-file-earmark-text"></i> Peminjaman
 </a>
+<a href="{{ route('admin.notifikasi') }}"
+    class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}">
+    <i class="bi bi-bell"></i> Notifikasi
+</a>
 <a href="{{ route('admin.cluster') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'cluster' ? 'active' : '' }}">
     <i class="bi bi-pie-chart"></i> Analisis cluster

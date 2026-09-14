@@ -12,9 +12,9 @@
     class="sidebar-item {{ ($activeMenu ?? '') === 'status' ? 'active' : '' }}">
     <i class="bi bi-clock"></i> Status permintaan
 </a>
-<a href="#"
+<a href="{{ route('karyawan.riwayat') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'riwayat' ? 'active' : '' }}">
-    <i class="bi bi-grid"></i> Riwayat
+    <i class="bi bi-clock-history"></i> Riwayat
 </a>
 <a href="{{ route('karyawan.notifikasi') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}">

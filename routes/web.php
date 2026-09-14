@@ -57,7 +57,9 @@ Route::middleware(['auth', 'role:admin_aset'])->group(function () {
     Route::get ('/admin/laporan',                   [AdminController::class, 'laporan'])->name('admin.laporan');
     Route::get ('/admin/cluster',                   [AdminController::class, 'cluster'])->name('admin.cluster');
     Route::post('/admin/cluster/jalankan',          [AdminController::class, 'jalankanCluster'])->name('admin.cluster.jalankan');
-
+    Route::get ('/admin/notifikasi',              [AdminController::class, 'notifikasi'])->name('admin.notifikasi');
+Route::post('/admin/notifikasi/{id}/baca',    [AdminController::class, 'tandaiDibaca'])->name('admin.notifikasi.baca');
+Route::post('/admin/notifikasi/baca-semua',   [AdminController::class, 'tandaiSemuaDibaca'])->name('admin.notifikasi.baca-semua');
 });
 
 // ══════════════════════════════════════════════════════════════════════
@@ -68,6 +70,7 @@ Route::middleware(['auth', 'role:hr_kepala_divisi'])->group(function () {
     Route::get ('/hr/dashboard', [HrController::class, 'dashboard'])->name('hr.dashboard');
     Route::get ('/hr/approval',  [HrController::class, 'approval'])->name('hr.approval');
     Route::post('/hr/approval',  [HrController::class, 'prosesApproval'])->name('hr.approval.proses');
+    Route::get ('/hr/riwayat',   [HrController::class, 'riwayat'])->name('hr.riwayat');
 
 });
 
@@ -80,6 +83,7 @@ Route::middleware(['auth', 'role:karyawan'])->group(function () {
     Route::get ('/karyawan/pengajuan',  [KaryawanController::class, 'pengajuan'])->name('karyawan.pengajuan');
     Route::post('/karyawan/pengajuan',  [KaryawanController::class, 'store'])->name('karyawan.pengajuan.store');
     Route::get ('/karyawan/status',     [KaryawanController::class, 'status'])->name('karyawan.status');
+    Route::get ('/karyawan/riwayat',    [KaryawanController::class, 'riwayat'])->name('karyawan.riwayat');
     Route::get ('/karyawan/notifikasi', [KaryawanController::class, 'notifikasi'])->name('karyawan.notifikasi');
 
 });
