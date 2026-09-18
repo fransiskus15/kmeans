@@ -382,45 +382,43 @@ class AdminController extends Controller
     // ══════════════════════════════════════════════════════════════════════
     public function cluster()
     {
-        // ── Metadata run terakhir dari clustering_log ────────────────────
-        // Kolom nyata: id, k_optimal, silhouette_score, silhouette_persen,
-        //              davies_bouldin, akurasi_persen, pct_terklasifikasi,
-        //              total_peminjam, distribusi_a, distribusi_b, distribusi_c
         $logTerakhir = DB::table('clustering_log')
             ->orderBy('created_at', 'desc')
             ->first();
 
+        // ── Nilai-nilai dasar dari log terakhir ──────────────────────────
+        $kDipakai          = $logTerakhir->k_optimal ?? 3;
+        $silhouettePersen  = $logTerakhir
+            ? round($logTerakhir->silhouette_persen ?? ($logTerakhir->silhouette_score * 100), 1)
+            : null;
+        $dbi               = $logTerakhir->davies_bouldin ?? null;
+        $akurasiPersen     = $logTerakhir->akurasi_persen ?? null;
+        $pctTerklasifikasi = $logTerakhir->pct_terklasifikasi ?? null;
+
         $meta = [
-            'k'          => $logTerakhir?->k_optimal ?? 3,
-            'silhouette' => $logTerakhir
-                                ? ($logTerakhir->silhouette_persen ?? round($logTerakhir->silhouette_score * 100)) . '%'
-                                : '-',
+            'k'          => $kDipakai,
+            'silhouette' => $silhouettePersen !== null ? $silhouettePersen . '%' : '-',
             'run_date'   => $logTerakhir
                                 ? Carbon::parse($logTerakhir->created_at)->format('d M Y')
                                 : 'Belum dijalankan',
         ];
 
-        // ── Summary distribusi cluster ────────────────────────────────────
-        // Jika ada data di clustering_log, ambil distribusi dari sana
+        // ── Distribusi cluster ───────────────────────────────────────────
         if ($logTerakhir) {
             $totalLog = $logTerakhir->total_peminjam ?? 0;
             $distA    = $logTerakhir->distribusi_a ?? 0;
             $distB    = $logTerakhir->distribusi_b ?? 0;
             $distC    = $logTerakhir->distribusi_c ?? 0;
         } else {
-            // Fallback: hitung langsung dari profil_cluster
             $totalLog = ProfilCluster::count();
             $distA    = ProfilCluster::where('label_cluster', 'A')->count();
             $distB    = ProfilCluster::where('label_cluster', 'B')->count();
             $distC    = ProfilCluster::where('label_cluster', 'C')->count();
         }
 
-        // Ambil nama cluster dari profil_cluster
-        // Menggunakan pluck + unique untuk menghindari konflik alias kolom
-        // di MySQL ONLY_FULL_GROUP_BY mode
-        $namaCluster = ProfilCluster::orderBy('label_cluster')
-            ->get(['label_cluster', 'nama_cluster'])
-            ->unique('label_cluster')
+        $namaCluster = ProfilCluster::selectRaw('label_cluster, MAX(nama_cluster) as nama_cluster', [])
+            ->groupBy('label_cluster')
+            ->get()
             ->keyBy('label_cluster');
 
         $total = $totalLog ?: ProfilCluster::count();
@@ -444,57 +442,72 @@ class AdminController extends Controller
             ],
         ];
 
-        // ── Elbow — tabel clustering_log tidak menyimpan inertia per-K,
-        //   gunakan data statis sebagai ilustrasi
-        $elbow = [
-            ['k' => 2, 'inertia' => 92, 'optimal' => false],
-            ['k' => 3, 'inertia' => 58, 'optimal' => ($meta['k'] == 3)],
-            ['k' => 4, 'inertia' => 44, 'optimal' => ($meta['k'] == 4)],
-            ['k' => 5, 'inertia' => 36, 'optimal' => ($meta['k'] == 5)],
-            ['k' => 6, 'inertia' => 31, 'optimal' => false],
-            ['k' => 7, 'inertia' => 27, 'optimal' => false],
-        ];
+        // ══════════════════════════════════════════════════════════════════
+        // GRAFIK ELBOW & SILHOUETTE — DARI DATA ASLI (bukan hardcoded)
+        // ══════════════════════════════════════════════════════════════════
+        $elbow              = [];
+        $silhouette         = [];
+        $kOptimalSilhouette = null;
 
-        // ── Silhouette score per-K — ilustrasi, highlight K optimal ──────
-        $silhouetteScore = $logTerakhir
-            ? ($logTerakhir->silhouette_persen ?? round($logTerakhir->silhouette_score * 100))
-            : 68;
+        $elbowRaw = $logTerakhir && !empty($logTerakhir->elbow_data)
+            ? json_decode($logTerakhir->elbow_data, true)
+            : null;
 
-        $silhouette = [
-            ['k' => 2, 'score' => 54, 'optimal' => false],
-            ['k' => 3, 'score' => $meta['k'] == 3 ? $silhouetteScore : 68, 'optimal' => ($meta['k'] == 3)],
-            ['k' => 4, 'score' => $meta['k'] == 4 ? $silhouetteScore : 61, 'optimal' => ($meta['k'] == 4)],
-            ['k' => 5, 'score' => $meta['k'] == 5 ? $silhouetteScore : 55, 'optimal' => ($meta['k'] == 5)],
-            ['k' => 6, 'score' => 49, 'optimal' => false],
-        ];
+        if (is_array($elbowRaw) && count($elbowRaw) > 0) {
 
-        // ── Indikator akurasi dari clustering_log ────────────────────────
+            // Cari K dengan Silhouette tertinggi (K optimal secara statistik)
+            $best               = collect($elbowRaw)->sortByDesc('silhouette')->first();
+            $kOptimalSilhouette = $best['k'] ?? null;
+
+            foreach ($elbowRaw as $row) {
+                $k = $row['k'];
+
+                $elbow[] = [
+                    'k'       => $k,
+                    'inertia' => round($row['inertia'] ?? 0, 4),
+                    'optimal' => ($k == $kDipakai),
+                ];
+
+                $silhouette[] = [
+                    'k'       => $k,
+                    'score'   => round($row['silhouette_persen'] ?? (($row['silhouette'] ?? 0) * 100), 1),
+                    'optimal' => ($k == $kOptimalSilhouette),
+                    'dipakai' => ($k == $kDipakai),
+                ];
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // INDIKATOR AKURASI
+        // ══════════════════════════════════════════════════════════════════
         $indikator = [
             [
-                'label'  => 'Silhouette Score',
-                'nilai'  => $logTerakhir ? $silhouetteScore . '%' : '-',
-                'target' => '≥ 50%',
+                'label'    => 'Silhouette Score',
+                'nilai'    => $silhouettePersen !== null ? $silhouettePersen . '%' : '-',
+                'target'   => '≥ 50%',
+                'tercapai' => $silhouettePersen !== null ? ($silhouettePersen >= 50) : null,
             ],
             [
-                'label'  => 'Davies-Bouldin Index',
-                'nilai'  => $logTerakhir ? $logTerakhir->davies_bouldin : '-',
-                'target' => '< 1.0',
+                'label'    => 'Davies-Bouldin Index',
+                'nilai'    => $dbi !== null ? number_format($dbi, 4) : '-',
+                'target'   => '< 1.0',
+                'tercapai' => $dbi !== null ? ($dbi < 1.0) : null,
             ],
             [
-                'label'  => 'Akurasi klasifikasi',
-                'nilai'  => $logTerakhir && $logTerakhir->akurasi_persen
-                                ? $logTerakhir->akurasi_persen . '%'
-                                : '-',
-                'target' => '≥ 75%',
+                'label'    => 'Akurasi klasifikasi',
+                'nilai'    => $akurasiPersen !== null ? round($akurasiPersen, 1) . '%' : '-',
+                'target'   => '≥ 75%',
+                'tercapai' => $akurasiPersen !== null ? ($akurasiPersen >= 75) : null,
             ],
             [
-                'label'  => 'Peminjam terklasifikasi',
-                'nilai'  => $logTerakhir ? $logTerakhir->pct_terklasifikasi . '%' : '-',
-                'target' => '≥ 80%',
+                'label'    => 'Peminjam terklasifikasi',
+                'nilai'    => $pctTerklasifikasi !== null ? round($pctTerklasifikasi, 1) . '%' : '-',
+                'target'   => '≥ 80%',
+                'tercapai' => $pctTerklasifikasi !== null ? ($pctTerklasifikasi >= 80) : null,
             ],
         ];
 
-        // ── Daftar peminjam dengan label cluster dari DB ─────────────────
+        // ── Daftar peminjam dengan label cluster ─────────────────────────
         $peminjamRaw = ProfilCluster::with('pengguna')
             ->orderBy('label_cluster')
             ->paginate(10);
@@ -508,63 +521,64 @@ class AdminController extends Controller
         ]);
 
         return view('admin.cluster', compact(
-            'meta', 'summary', 'elbow', 'silhouette', 'indikator', 'peminjam', 'peminjamRaw'
+            'meta', 'summary', 'elbow', 'silhouette', 'indikator',
+            'peminjam', 'peminjamRaw', 'kOptimalSilhouette', 'kDipakai'
         ));
-    }  
+    }
 
     public function notifikasi(Request $request)
-{
-    $adminId = auth()->user()->id_pengguna;
- 
-    $query = Notifikasi::with('peminjaman.peminjam', 'peminjaman.aset')
-        ->where('pengguna_id', $adminId)
-        ->orderBy('created_at', 'desc');
- 
-    // Filter tab: semua / belum dibaca
-    if ($request->get('filter') === 'belum_dibaca') {
-        $query->where('dibaca', false);
+    {
+        $adminId = auth()->user()->id_pengguna;
+
+        $query = Notifikasi::with('peminjaman.peminjam', 'peminjaman.aset')
+            ->where('pengguna_id', $adminId)
+            ->orderBy('created_at', 'desc');
+
+        // Filter tab: semua / belum dibaca
+        if ($request->get('filter') === 'belum_dibaca') {
+            $query->where('dibaca', false);
+        }
+
+        $notifikasiList = $query->paginate(15);
+
+        $jumlahBelumDibaca = Notifikasi::where('pengguna_id', $adminId)
+            ->where('dibaca', false)
+            ->count();
+
+        $notifikasi = $notifikasiList->map(function ($n) {
+            return [
+                'id'     => $n->id_notifikasi,
+                'judul'  => $n->judul,
+                'pesan'  => $n->pesan,
+                'tipe'   => $n->tipe,
+                'dibaca' => $n->dibaca,
+                'waktu'  => Carbon::parse($n->created_at)->diffForHumans(),
+            ];
+        });
+
+        return view('admin.notifikasi', compact('notifikasi', 'notifikasiList', 'jumlahBelumDibaca'));
     }
- 
-    $notifikasiList = $query->paginate(15);
- 
-    $jumlahBelumDibaca = Notifikasi::where('pengguna_id', $adminId)
-        ->where('dibaca', false)
-        ->count();
- 
-    $notifikasi = $notifikasiList->map(function ($n) {
-        return [
-            'id'      => $n->id_notifikasi,
-            'judul'   => $n->judul,
-            'pesan'   => $n->pesan,
-            'tipe'    => $n->tipe,
-            'dibaca'  => $n->dibaca,
-            'waktu'   => Carbon::parse($n->created_at)->diffForHumans(),
-        ];
-    });
- 
-    return view('admin.notifikasi', compact('notifikasi', 'notifikasiList', 'jumlahBelumDibaca'));
-}
- 
-// Tandai satu notifikasi sebagai dibaca
-public function tandaiDibaca($id)
-{
-    $notif = Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
-        ->findOrFail($id);
- 
-    $notif->update(['dibaca' => true, 'dibaca_pada' => now()]);
- 
-    return back();
-}
- 
-// Tandai SEMUA notifikasi sebagai dibaca
-public function tandaiSemuaDibaca()
-{
-    Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
-        ->where('dibaca', false)
-        ->update(['dibaca' => true, 'dibaca_pada' => now()]);
- 
-    return back()->with('success', 'Semua notifikasi telah ditandai sebagai dibaca.');
-}
+
+    // Tandai satu notifikasi sebagai dibaca
+    public function tandaiDibaca($id)
+    {
+        $notif = Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
+            ->findOrFail($id);
+
+        $notif->update(['dibaca' => true, 'dibaca_pada' => now()]);
+
+        return back();
+    }
+
+    // Tandai SEMUA notifikasi sebagai dibaca
+    public function tandaiSemuaDibaca()
+    {
+        Notifikasi::where('pengguna_id', auth()->user()->id_pengguna)
+            ->where('dibaca', false)
+            ->update(['dibaca' => true, 'dibaca_pada' => now()]);
+
+        return back()->with('success', 'Semua notifikasi telah ditandai sebagai dibaca.');
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // JALANKAN CLUSTERING — dipanggil tombol "Jalankan Cluster"
@@ -575,23 +589,23 @@ public function tandaiSemuaDibaca()
         try {
             // ── 1. Hitung F1-F5 dari data transaksi peminjaman ──────────
             $dataFitur = $this->hitungFiturF1F5();
- 
+
             if (count($dataFitur) < self::MIN_PEMINJAM) {
                 $pesan = 'Data belum cukup untuk clustering. Ditemukan '
                         . count($dataFitur) . ' peminjam dengan riwayat memadai, '
                         . 'minimal ' . self::MIN_PEMINJAM . ' peminjam diperlukan '
                         . '(masing-masing minimal ' . self::MIN_TRANSAKSI . ' transaksi selesai).';
- 
+
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => $pesan], 422);
                 }
                 return back()->with('error', $pesan);
             }
- 
-            // ── 2. Kirim ke Python Flask API ──────────────────────────────
+
+            // ── 2. Kirim ke Python Flask API — endpoint /clustering ──────
             $response = Http::timeout(60)
                 ->post(self::PYTHON_API . '/clustering', ['data' => $dataFitur]);
- 
+
             if (!$response->successful()) {
                 $pesan = 'Python API tidak merespons. Pastikan Flask berjalan (python app.py) di port 5000.';
                 if ($request->wantsJson()) {
@@ -599,9 +613,9 @@ public function tandaiSemuaDibaca()
                 }
                 return back()->with('error', $pesan);
             }
- 
+
             $hasil = $response->json();
- 
+
             if (!($hasil['success'] ?? false)) {
                 $pesan = $hasil['message'] ?? 'Clustering gagal dijalankan.';
                 if ($request->wantsJson()) {
@@ -609,10 +623,30 @@ public function tandaiSemuaDibaca()
                 }
                 return back()->with('error', $pesan);
             }
- 
-            // ── 3. Simpan hasil ke tabel profil_cluster ───────────────────
+
+            // ── 3. Ambil data Elbow + Silhouette per K yang ASLI ─────────
+            $elbowData   = null;
+            $kOptimalSil = null;
+
+            try {
+                $elbowResponse = Http::timeout(60)
+                    ->post(self::PYTHON_API . '/elbow', ['data' => $dataFitur]);
+
+                if ($elbowResponse->successful()) {
+                    $elbowJson = $elbowResponse->json();
+                    if ($elbowJson['success'] ?? false) {
+                        $elbowData   = $elbowJson['elbow'] ?? null;
+                        $kOptimalSil = $elbowJson['k_optimal'] ?? null;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Jika /elbow gagal, clustering tetap lanjut — grafik saja yang kosong
+                $elbowData = null;
+            }
+
+            // ── 4. Simpan hasil ke tabel profil_cluster ───────────────────
             DB::beginTransaction();
- 
+
             foreach ($hasil['hasil'] as $item) {
                 ProfilCluster::updateOrCreate(
                     ['pengguna_id' => $item['user_id']],
@@ -629,8 +663,8 @@ public function tandaiSemuaDibaca()
                     ]
                 );
             }
- 
-            // ── 4. Simpan log evaluasi clustering ──────────────────────────
+
+            // ── 5. Simpan log evaluasi + data elbow asli ───────────────────
             DB::table('clustering_log')->insert([
                 'k_optimal'          => $hasil['k_optimal'] ?? 3,
                 'silhouette_score'   => $hasil['silhouette_score'] ?? 0,
@@ -638,6 +672,7 @@ public function tandaiSemuaDibaca()
                 'davies_bouldin'     => $hasil['davies_bouldin'] ?? 0,
                 'akurasi_persen'     => $hasil['akurasi_persen'] ?? null,
                 'pct_terklasifikasi' => $hasil['pct_terklasifikasi'] ?? 0,
+                'elbow_data'         => $elbowData ? json_encode($elbowData) : null,
                 'total_peminjam'     => $hasil['total_peminjam'] ?? count($dataFitur),
                 'distribusi_a'       => $hasil['distribusi']['A'] ?? 0,
                 'distribusi_b'       => $hasil['distribusi']['B'] ?? 0,
@@ -645,32 +680,41 @@ public function tandaiSemuaDibaca()
                 'created_at'         => Carbon::now(),
                 'updated_at'         => Carbon::now(),
             ]);
- 
+
             DB::commit();
- 
-            $pesanSukses = 'Clustering berhasil dijalankan untuk ' . ($hasil['total_peminjam'] ?? count($dataFitur))
-                            . ' peminjam. Silhouette Score: ' . ($hasil['silhouette_persen'] ?? '-') . '%.';
- 
+
+            $pesanSukses = 'Clustering berhasil dijalankan untuk '
+                            . ($hasil['total_peminjam'] ?? count($dataFitur))
+                            . ' peminjam. Silhouette Score: '
+                            . ($hasil['silhouette_persen'] ?? '-') . '%.';
+
+            if ($kOptimalSil && $kOptimalSil != ($hasil['k_optimal'] ?? 3)) {
+                $pesanSukses .= ' Catatan: Silhouette tertinggi terdapat pada K=' . $kOptimalSil
+                                . ', sedangkan sistem menggunakan K=' . ($hasil['k_optimal'] ?? 3)
+                                . ' sesuai batasan penelitian.';
+            }
+
             if ($request->wantsJson()) {
                 return response()->json([
-                    'success'           => true,
-                    'message'           => $pesanSukses,
-                    'total_peminjam'    => $hasil['total_peminjam'] ?? count($dataFitur),
-                    'silhouette_persen' => $hasil['silhouette_persen'] ?? null,
-                    'akurasi_persen'    => $hasil['akurasi_persen'] ?? null,
-                    'distribusi'        => $hasil['distribusi'] ?? null,
+                    'success'              => true,
+                    'message'              => $pesanSukses,
+                    'total_peminjam'       => $hasil['total_peminjam'] ?? count($dataFitur),
+                    'silhouette_persen'    => $hasil['silhouette_persen'] ?? null,
+                    'akurasi_persen'       => $hasil['akurasi_persen'] ?? null,
+                    'distribusi'           => $hasil['distribusi'] ?? null,
+                    'k_optimal_silhouette' => $kOptimalSil,
                 ]);
             }
- 
+
             return redirect()->route('admin.cluster')->with('success', $pesanSukses);
- 
+
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             $pesan = 'Tidak dapat terhubung ke Python API. Jalankan dulu: cd ml-python && python app.py';
             if ($request->wantsJson()) {
                 return response()->json(['success' => false, 'message' => $pesan], 503);
             }
             return back()->with('error', $pesan);
- 
+
         } catch (\Exception $e) {
             DB::rollBack();
             $pesan = 'Terjadi kesalahan: ' . $e->getMessage();

@@ -364,73 +364,114 @@
     <div class="row g-3 mb-3">
         <div class="col-lg-6">
             <div class="chart-panel">
-                <div class="chart-panel-title">Elbow method — inertia per K</div>
-
+    <div class="chart-panel-title">Elbow method — inertia per K</div>
+ 
+    @if (count($elbow) > 0)
+        @php
+            $maxInertia = max(array_column($elbow, 'inertia')) ?: 1;
+        @endphp
+ 
+        <div class="elbow-chart" id="elbowChart">
+            @foreach ($elbow as $item)
                 @php
-                    $maxInertia = max(array_column($elbow, 'inertia'));
+                    $heightPct = ($item['inertia'] / $maxInertia) * 100;
+                    $isOptimal = !empty($item['optimal']);
                 @endphp
-
-                <div class="elbow-chart" id="elbowChart">
-                    @foreach ($elbow as $index => $item)
-                        @php
-                            $heightPct = ($item['inertia'] / $maxInertia) * 100;
-                            $isOptimal = !empty($item['optimal']);
-                        @endphp
-                        <div class="elbow-bar-wrap" data-k="{{ $item['k'] }}">
-                            @if ($isOptimal)
-                                <div class="elbow-marker" style="left: 50%;">
-                                    <span class="elbow-marker-label">siku K={{ $item['k'] }}</span>
-                                </div>
-                            @endif
-                            <div class="elbow-bar {{ $isOptimal ? 'optimal' : '' }}"
-                                style="height: {{ $heightPct }}%;">
-                                @if ($isOptimal)
-                                    <span class="elbow-bar-star"><i class="bi bi-star-fill"></i></span>
-                                @endif
-                            </div>
-                            <div class="elbow-label">K{{ $item['k'] }}</div>
+                <div class="elbow-bar-wrap" data-k="{{ $item['k'] }}">
+                    @if ($isOptimal)
+                        <div class="elbow-marker" style="left: 50%;">
+                            <span class="elbow-marker-label">siku K={{ $item['k'] }}</span>
                         </div>
-                    @endforeach
+                    @endif
+                    <div class="elbow-bar {{ $isOptimal ? 'optimal' : '' }}"
+                        style="height: {{ $heightPct }}%;">
+                        @if ($isOptimal)
+                            <span class="elbow-bar-star"><i class="bi bi-star-fill"></i></span>
+                        @endif
+                    </div>
+                    <div class="elbow-label">K{{ $item['k'] }}</div>
                 </div>
-
-                <div class="chart-panel-footer">
-                    Titik siku (elbow) terjadi pada K={{ $meta['k'] }}
-                </div>
-            </div>
+            @endforeach
+        </div>
+ 
+        <div class="chart-panel-footer">
+            Sistem menggunakan K={{ $kDipakai }} sesuai batasan penelitian (Sub-bab 1.4).
+        </div>
+    @else
+        <div class="text-center text-muted py-5" style="font-size:13px;">
+            <i class="bi bi-bar-chart" style="font-size:32px;opacity:.3;"></i>
+            <p class="mt-2 mb-0">Belum ada data Elbow Method.</p>
+            <p style="font-size:12px;">Klik "Jalankan ulang" untuk memulai analisis.</p>
+        </div>
+    @endif
+</div>
         </div>
 
         <div class="col-lg-6">
             <div class="chart-panel">
-                <div class="chart-panel-title">Silhouette score per nilai K</div>
-
-                <div class="silhouette-chart">
-                    @foreach ($silhouette as $item)
-                        @php
-                            $isOptimal = !empty($item['optimal']);
-                            $widthPct = ($item['score'] / 100) * 100;
-                        @endphp
-                        <div class="silhouette-row">
-                            <div class="silhouette-k">K={{ $item['k'] }}</div>
-                            <div class="silhouette-track">
-                                <div class="silhouette-fill {{ $isOptimal ? 'optimal' : '' }}"
-                                    style="width: {{ $widthPct }}%;">
-                                    <span class="silhouette-score">
-                                        {{ $item['score'] }}%
-                                        @if ($isOptimal)
-                                            <i class="bi bi-star-fill"></i>
-                                        @endif
-                                    </span>
-                                </div>
-                            </div>
+    <div class="chart-panel-title">Silhouette score per nilai K</div>
+ 
+    @if (count($silhouette) > 0)
+        <div class="silhouette-chart">
+            @foreach ($silhouette as $item)
+                @php
+                    $isTertinggi = !empty($item['optimal']);   // Silhouette tertinggi
+                    $isDipakai   = !empty($item['dipakai']);   // K yang dipakai sistem
+                    $widthPct    = max(3, $item['score']);     // minimal 3% agar label terlihat
+                @endphp
+                <div class="silhouette-row">
+                    <div class="silhouette-k {{ $isDipakai ? 'fw-bold text-primary' : '' }}">
+                        K={{ $item['k'] }}
+                    </div>
+                    <div class="silhouette-track">
+                        <div class="silhouette-fill {{ $isDipakai ? 'optimal' : '' }}"
+                            style="width: {{ $widthPct }}%;">
+                            <span class="silhouette-score">
+                                {{ $item['score'] }}%
+                                @if ($isTertinggi)
+                                    <i class="bi bi-star-fill" title="Silhouette tertinggi"></i>
+                                @endif
+                            </span>
                         </div>
-                    @endforeach
+                    </div>
                 </div>
-
-                <div class="chart-panel-footer">
-                    Target &gt; 50% — K={{ $meta['k'] }} = {{ $meta['silhouette'] }}
-                    <span class="good"><i class="bi bi-check-circle-fill"></i></span>
-                </div>
-            </div>
+            @endforeach
+        </div>
+ 
+        <div class="chart-panel-footer">
+            @php
+                $silDipakai = collect($silhouette)->firstWhere('dipakai', true);
+                $skorDipakai = $silDipakai['score'] ?? 0;
+                $memenuhiTarget = $skorDipakai >= 50;
+            @endphp
+ 
+            Target ≥ 50% — K={{ $kDipakai }} menghasilkan {{ $skorDipakai }}%
+            @if ($memenuhiTarget)
+                <span class="good"><i class="bi bi-check-circle-fill"></i> memenuhi target</span>
+            @else
+                <span style="color:#c0392b;font-weight:500;">
+                    <i class="bi bi-exclamation-circle-fill"></i> belum memenuhi target
+                </span>
+            @endif
+ 
+            @if ($kOptimalSilhouette && $kOptimalSilhouette != $kDipakai)
+                <br>
+                <span style="color:#9aa0a6;font-size:11.5px;">
+                    <i class="bi bi-star-fill"></i> Silhouette tertinggi terdapat pada
+                    K={{ $kOptimalSilhouette }}, namun sistem tetap menggunakan
+                    K={{ $kDipakai }} sesuai batasan penelitian.
+                </span>
+            @endif
+        </div>
+    @else
+        <div class="text-center text-muted py-5" style="font-size:13px;">
+            <i class="bi bi-graph-up" style="font-size:32px;opacity:.3;"></i>
+            <p class="mt-2 mb-0">Belum ada data Silhouette Score.</p>
+            <p style="font-size:12px;">Klik "Jalankan ulang" untuk memulai analisis.</p>
+        </div>
+    @endif
+</div>
+ 
         </div>
     </div>
 
@@ -440,19 +481,29 @@
             <div class="chart-panel">
                 <div class="chart-panel-title">Indikator akurasi clustering</div>
                 <div class="indikator-list">
-                    @foreach ($indikator as $item)
-                        <div class="indikator-item">
-                            <div>
-                                <div class="indikator-label">{{ $item['label'] }}</div>
-                                <div class="indikator-target">(target {{ $item['target'] }})</div>
-                            </div>
-                            <div class="indikator-value">
-                                {{ $item['nilai'] }}
-                                <i class="bi bi-check-circle-fill"></i>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
+    @foreach ($indikator as $item)
+        <div class="indikator-item">
+            <div>
+                <div class="indikator-label">{{ $item['label'] }}</div>
+                <div class="indikator-target">(target {{ $item['target'] }})</div>
+            </div>
+            <div class="indikator-value">
+                {{ $item['nilai'] }}
+ 
+                @if (!is_null($item['tercapai']))
+                    @if ($item['tercapai'])
+                        <i class="bi bi-check-circle-fill" style="color:#2d9f6f;"
+                           title="Target tercapai"></i>
+                    @else
+                        <i class="bi bi-exclamation-circle-fill" style="color:#c0392b;"
+                           title="Target belum tercapai"></i>
+                    @endif
+                @endif
+            </div>
+        </div>
+    @endforeach
+</div>
+
             </div>
         </div>
 
