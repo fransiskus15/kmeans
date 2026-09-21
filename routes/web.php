@@ -84,6 +84,8 @@ Route::middleware(['auth', 'role:karyawan'])->group(function () {
     Route::post('/karyawan/pengajuan',  [KaryawanController::class, 'store'])->name('karyawan.pengajuan.store');
     Route::get ('/karyawan/status',     [KaryawanController::class, 'status'])->name('karyawan.status');
     Route::get ('/karyawan/riwayat',    [KaryawanController::class, 'riwayat'])->name('karyawan.riwayat');
-    Route::get ('/karyawan/notifikasi', [KaryawanController::class, 'notifikasi'])->name('karyawan.notifikasi');
+    Route::get ('/karyawan/notifikasi',              [KaryawanController::class, 'notifikasi'])->name('karyawan.notifikasi');
+    Route::post('/karyawan/notifikasi/baca-semua',   [KaryawanController::class, 'tandaiSemuaDibaca'])->name('karyawan.notifikasi.baca-semua');
+    Route::post('/karyawan/notifikasi/{id}/baca',    [KaryawanController::class, 'tandaiDibaca'])->name('karyawan.notifikasi.baca');
 
 });

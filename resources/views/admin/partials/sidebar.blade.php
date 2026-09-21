@@ -11,8 +11,27 @@
     <i class="bi bi-file-earmark-text"></i> Peminjaman
 </a>
 <a href="{{ route('admin.notifikasi') }}"
-    class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}">
-    <i class="bi bi-bell"></i> Notifikasi
+    class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}"
+    style="position: relative;">
+    <i class="bi bi-bell"></i>
+    Notifikasi
+    @if (!empty($notifBelumDibacaCount) && $notifBelumDibacaCount > 0)
+    <span style="
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        background: #e53e3e;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 20px;
+        line-height: 1;
+        margin-left: auto;
+    ">{{ $notifBelumDibacaCount > 99 ? '99+' : $notifBelumDibacaCount }}</span>
+    @endif
 </a>
 <a href="{{ route('admin.cluster') }}"
     class="sidebar-item {{ ($activeMenu ?? '') === 'cluster' ? 'active' : '' }}">

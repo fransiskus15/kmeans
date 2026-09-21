@@ -215,15 +215,20 @@
 @push('scripts')
 <script>
     (function () {
-        const filterBtns = document.querySelectorAll('.notif-filter-btn');
-        const notifItems = document.querySelectorAll('.notif-item');
-        const notifEmpty = document.getElementById('notifEmpty');
-        const btnMarkAll = document.getElementById('btnMarkAllRead');
+        const filterBtns     = document.querySelectorAll('.notif-filter-btn');
+        const notifItems     = document.querySelectorAll('.notif-item');
+        const notifEmpty     = document.getElementById('notifEmpty');
+        const btnMarkAll     = document.getElementById('btnMarkAllRead');
         const unreadSubtitle = document.getElementById('unreadSubtitle');
-        const sidebarBadge = document.querySelector('.sidebar-badge');
+        const csrfToken      = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        // URL endpoints dari Laravel (digenerate Blade agar tidak hardcode)
+        const urlBacaSemua = "{{ route('karyawan.notifikasi.baca-semua') }}";
+        const urlBacaSatu  = id => "{{ url('karyawan/notifikasi') }}/" + id + "/baca";
 
         let activeFilter = 'semua';
 
+        // ── Hitung & update UI jumlah belum dibaca ────────────────────────
         function getUnreadCount() {
             return document.querySelectorAll('.notif-item[data-read="0"]').length;
         }
@@ -233,19 +238,21 @@
             if (unreadSubtitle) {
                 unreadSubtitle.textContent = count + ' belum dibaca';
             }
-            if (sidebarBadge) {
+            // Update badge sidebar (span di dalam link notifikasi)
+            const sidebarLink = document.querySelector('a[href*="notifikasi"] span');
+            if (sidebarLink) {
                 if (count > 0) {
-                    sidebarBadge.textContent = count;
-                    sidebarBadge.style.display = '';
+                    sidebarLink.textContent = count > 99 ? '99+' : count;
+                    sidebarLink.style.display = 'inline-flex';
                 } else {
-                    sidebarBadge.style.display = 'none';
+                    sidebarLink.style.display = 'none';
                 }
             }
         }
 
+        // ── Filter tampilan ───────────────────────────────────────────────
         function applyFilter() {
             let visibleCount = 0;
-
             notifItems.forEach(function (item) {
                 const isUnread = item.dataset.read === '0';
                 const kategori = item.dataset.kategori;
@@ -260,7 +267,6 @@
                 item.classList.toggle('hidden', !show);
                 if (show) visibleCount++;
             });
-
             notifEmpty.classList.toggle('show', visibleCount === 0);
         }
 
@@ -273,25 +279,56 @@
             });
         });
 
+        // ── Klik satu notifikasi → simpan ke DB via AJAX ──────────────────
         notifItems.forEach(function (item) {
             item.addEventListener('click', function () {
                 if (item.dataset.read === '0') {
+                    const id = item.dataset.id;
+
+                    // Langsung update UI dulu (optimistic update)
                     item.dataset.read = '1';
                     item.classList.remove('unread');
                     updateUnreadUI();
                     applyFilter();
+
+                    // Simpan ke database
+                    fetch(urlBacaSatu(id), {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        }
+                    }).catch(function () {
+                        // Jika gagal, kembalikan status unread di UI
+                        item.dataset.read = '0';
+                        item.classList.add('unread');
+                        updateUnreadUI();
+                    });
                 }
             });
         });
 
+        // ── Tandai semua dibaca → simpan ke DB via AJAX ───────────────────
         if (btnMarkAll) {
             btnMarkAll.addEventListener('click', function () {
+                // Update UI dulu
                 notifItems.forEach(function (item) {
                     item.dataset.read = '1';
                     item.classList.remove('unread');
                 });
                 updateUnreadUI();
                 applyFilter();
+
+                // Simpan ke database
+                fetch(urlBacaSemua, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    }
+                });
             });
         }
     })();

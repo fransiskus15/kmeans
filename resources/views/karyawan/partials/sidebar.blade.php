@@ -17,10 +17,26 @@
     <i class="bi bi-clock-history"></i> Riwayat
 </a>
 <a href="{{ route('karyawan.notifikasi') }}"
-    class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}">
-    <i class="bi bi-bell"></i> Notifikasi
-    @if (($karyawan['unread_notifikasi'] ?? 0) > 0)
-        <span class="sidebar-badge">{{ $karyawan['unread_notifikasi'] }}</span>
+    class="sidebar-item {{ ($activeMenu ?? '') === 'notifikasi' ? 'active' : '' }}"
+    style="position: relative;">
+    <i class="bi bi-bell"></i>
+    Notifikasi
+    @if (!empty($karyawanNotifCount) && $karyawanNotifCount > 0)
+    <span style="
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        background: #e53e3e;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 20px;
+        line-height: 1;
+        margin-left: auto;
+    ">{{ $karyawanNotifCount > 99 ? '99+' : $karyawanNotifCount }}</span>
     @endif
 </a>
 

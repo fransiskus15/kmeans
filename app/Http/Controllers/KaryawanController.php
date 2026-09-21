@@ -296,6 +296,27 @@ class KaryawanController extends Controller
             + ['activeMenu' => 'notifikasi']);
     }
 
+    // Tandai SATU notifikasi sebagai dibaca (dipanggil via AJAX)
+    public function tandaiDibaca($id)
+    {
+        $notif = Notifikasi::where('pengguna_id', Auth::user()->id_pengguna)
+            ->findOrFail($id);
+
+        $notif->update(['dibaca' => true, 'dibaca_pada' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
+    // Tandai SEMUA notifikasi sebagai dibaca (dipanggil via AJAX)
+    public function tandaiSemuaDibaca()
+    {
+        Notifikasi::where('pengguna_id', Auth::user()->id_pengguna)
+            ->where('dibaca', false)
+            ->update(['dibaca' => true, 'dibaca_pada' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // STATUS PEMINJAMAN — ambil dari database berdasarkan user login
     // ══════════════════════════════════════════════════════════════════════
