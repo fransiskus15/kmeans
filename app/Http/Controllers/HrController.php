@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Peminjaman;
 use App\Models\Aset;
 use App\Models\Approval;
+use App\Models\Notifikasi;
 use App\Models\ProfilCluster;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -275,10 +276,21 @@ class HrController extends Controller
                 // Aset tetap "Dipesan" — sudah di-set saat karyawan mengajukan.
                 // Akan berubah ke "Dipinjam" setelah Admin Aset konfirmasi pengambilan.
                 $peminjaman->aset->update(['status' => 'Dipesan']);
+
+                // ── Notifikasi persetujuan ke karyawan ─────────────────────────────
+                Notifikasi::create([
+                    'pengguna_id'   => $peminjaman->pengguna_id,
+                    'peminjaman_id' => $peminjaman->id_peminjaman,
+                    'judul'         => 'Permintaan peminjaman disetujui',
+                    'pesan'         => "Permintaan peminjaman {$peminjaman->aset->nama_aset} Anda telah disetujui oleh HR."
+                                        . " Silakan ambil aset sesuai tanggal yang disepakati.",
+                    'tipe'          => 'persetujuan',
+                    'dibaca'        => false,
+                ]);
             });
 
             $keputusanLabel = 'Disetujui';
-            $message        = 'Peminjaman berhasil disetujui. Aset kini berstatus "Dipesan" — '
+            $message        = 'Peminjaman berhasil disetujui. Notifikasi telah dikirim ke karyawan. Aset kini berstatus "Dipesan" — '
                              . 'menunggu konfirmasi pengambilan oleh Admin Aset.';
 
         } else {
@@ -290,8 +302,19 @@ class HrController extends Controller
             // Saat ditolak: kembalikan aset ke "Tersedia" agar bisa diajukan karyawan lain
             $peminjaman->aset->update(['status' => 'Tersedia']);
 
+            // ── Notifikasi penolakan ke karyawan ──────────────────────────────
+            Notifikasi::create([
+                'pengguna_id'   => $peminjaman->pengguna_id,
+                'peminjaman_id' => $peminjaman->id_peminjaman,
+                'judul'         => 'Permintaan peminjaman ditolak',
+                'pesan'         => "Permintaan peminjaman {$peminjaman->aset->nama_aset} Anda telah ditolak oleh HR."
+                                    . ($request->filled('catatan') ? " Alasan: {$request->catatan}." : ''),
+                'tipe'          => 'penolakan',
+                'dibaca'        => false,
+            ]);
+
             $keputusanLabel = 'Ditolak';
-            $message        = 'Peminjaman telah ditolak.';
+            $message        = 'Peminjaman telah ditolak. Notifikasi telah dikirim ke karyawan.';
         }
 
         // Simpan data keputusan ke tabel approval

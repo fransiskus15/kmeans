@@ -364,7 +364,7 @@
     <div class="row g-3 mb-3">
         <div class="col-lg-6">
             <div class="chart-panel">
-    <div class="chart-panel-title">Elbow method — inertia per K</div>
+    <div class="chart-panel-title">Elbow method - inertia per K</div>
  
     @if (count($elbow) > 0)
         @php
@@ -395,7 +395,14 @@
         </div>
  
         <div class="chart-panel-footer">
-            Sistem menggunakan K={{ $kDipakai }} sesuai batasan penelitian (Sub-bab 1.4).
+            Sistem menggunakan K={{ $kDipakai }} sesuai batasan penelitian (Sub-bab 1.4). <br>
+            <b>Elbow method adalah teknik atau pendekatan heuristik yang digunakan dalam machine learning dan analisis data untuk menentukan jumlah klaster optimal (k).</b>
+            <br>
+
+            <br>
+            <b>Grafik ini membantu sistem menentukan jumlah kelompok (cluster) yang paling pas untuk mengelompokkan peminjam. Titik "siku" pada grafik menunjukkan jumlah kelompok yang paling optimal. <br>
+            <br>
+            Elbow Method adalah cara untuk mencari tahu berapa jumlah kelompok (cluster) yang paling tepat digunakan saat mengelompokkan peminjam berdasarkan perilakunya. Grafik ini menghitung nilai inertia — yaitu seberapa rapat anggota-anggota di dalam satu kelompok — untuk setiap kemungkinan jumlah kelompok (K=2, K=3, K=4, dan seterusnya). Semakin banyak jumlah kelompok, nilai inertia akan semakin kecil, tapi penurunannya akan melambat setelah titik tertentu. Titik di mana penurunan mulai melambat inilah yang disebut "titik siku" (elbow point), dan itu menjadi jumlah kelompok yang direkomendasikan — cukup banyak untuk membedakan pola perilaku peminjam, tapi tidak berlebihan sehingga tetap mudah dipahami.</b>
         </div>
     @else
         <div class="text-center text-muted py-5" style="font-size:13px;">
@@ -445,7 +452,7 @@
                 $memenuhiTarget = $skorDipakai >= 50;
             @endphp
  
-            Target ≥ 50% — K={{ $kDipakai }} menghasilkan {{ $skorDipakai }}%
+            Target ≥ 50% - K={{ $kDipakai }} menghasilkan {{ $skorDipakai }}%
             @if ($memenuhiTarget)
                 <span class="good"><i class="bi bi-check-circle-fill"></i> memenuhi target</span>
             @else
@@ -460,7 +467,16 @@
                     <i class="bi bi-star-fill"></i> Silhouette tertinggi terdapat pada
                     K={{ $kOptimalSilhouette }}, namun sistem tetap menggunakan
                     K={{ $kDipakai }} sesuai batasan penelitian.
+                    <br>
+                    <br>
                 </span>
+                <b>Silhouette score adalah metrik evaluasi yang digunakan untuk mengukur kualitas dan validitas hasil pengelompokan (clustering) pada data.</b>
+                <br>
+                <b>Angka ini menunjukkan seberapa baik pemisahan antar kelompok peminjam. Semakin tinggi persentasenya (mendekati 100%), semakin jelas perbedaan antar kelompok.</b>
+                <br>
+                <br>
+                <b>Silhouette Score mengukur kualitas hasil pengelompokan dengan melihat dua hal sekaligus: seberapa dekat seorang peminjam dengan anggota lain di kelompoknya sendiri, dan seberapa jauh ia dari kelompok lain. Nilainya berkisar dari -100% sampai 100%. Semakin tinggi nilainya, semakin jelas dan tegas pemisahan antar 
+                    kelompok - artinya peminjam dalam satu kelompok memang benar-benar mirip satu sama lain, dan berbeda jauh dari kelompok lainnya. Sebaliknya, nilai yang rendah menandakan batas antar kelompok masih kabur, sehingga ada peminjam yang polanya berada di antara dua kelompok sekaligus.</b>
             @endif
         </div>
     @else
@@ -502,6 +518,9 @@
             </div>
         </div>
     @endforeach
+    <b>Davies-Bouldin adalah angka yang menunjukkan seberapa mirip satu kelompok dengan kelompok lainnya. Semakin kecil angkanya (mendekati 0), semakin baik - artinya tiap kelompok punya ciri khas yang berbeda-beda.</b>
+    <br>
+    <b>Davies-Bouldin Index adalah ukuran lain untuk menilai kualitas pengelompokan, dengan cara kerja yang berkebalikan dari Silhouette Score: di sini, semakin kecil nilainya, semakin baik hasilnya. Index ini menghitung rata-rata tingkat "kemiripan" antara satu kelompok dengan kelompok tetangganya yang paling mirip. Jika nilainya kecil (mendekati 0), berarti setiap kelompok memiliki karakteristik yang cukup berbeda dan mudah dibedakan satu sama lain. Jika nilainya besar, berarti ada kelompok-kelompok yang karakteristiknya tumpang tindih, sehingga sulit dibedakan secara jelas.</b>
 </div>
 
             </div>

@@ -113,22 +113,27 @@
         font-size: 16px;
     }
 
-    .notif-icon.approved {
+    .notif-icon.approved,
+    .notif-icon.persetujuan {
         background-color: #d4edda;
         color: #2d9f6f;
     }
 
-    .notif-icon.reminder {
+    .notif-icon.reminder,
+    .notif-icon.keterlambatan {
         background-color: #fef3cd;
         color: #d97706;
     }
 
-    .notif-icon.rejected {
+    .notif-icon.rejected,
+    .notif-icon.penolakan {
         background-color: #fde8e8;
         color: #e53e3e;
     }
 
-    .notif-icon.returned {
+    .notif-icon.returned,
+    .notif-icon.pengembalian,
+    .notif-icon.pengambilan {
         background-color: #e8f0fe;
         color: #2b6cb0;
     }
@@ -185,11 +190,12 @@
             @foreach ($notifikasi as $item)
                 @php
                     $iconClass = match ($item['type']) {
-                        'approved' => 'bi-check-lg',
-                        'reminder' => 'bi-clock',
-                        'rejected' => 'bi-x-lg',
-                        'returned' => 'bi-check-lg',
-                        default => 'bi-bell',
+                        'approved', 'persetujuan'           => 'bi-check-circle',
+                        'reminder', 'keterlambatan'         => 'bi-clock',
+                        'rejected', 'penolakan'             => 'bi-x-circle',
+                        'returned', 'pengembalian'          => 'bi-box-arrow-in-left',
+                        'pengambilan'                       => 'bi-box-arrow-in-down',
+                        default                             => 'bi-bell',
                     };
                 @endphp
                 <div class="notif-item {{ $item['dibaca'] ? '' : 'unread' }}"

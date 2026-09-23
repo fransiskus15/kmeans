@@ -199,7 +199,7 @@ class KaryawanController extends Controller
                 'kategori_aset'   => old('kategori_aset', $kategori_aset[0]['id'] ?? ''),
                 'aset_id'         => old('aset_id', ''),
                 'tanggal_pinjam'  => old('tanggal_pinjam', now()->format('Y-m-d')),
-                'tanggal_kembali' => old('tanggal_kembali', now()->addWeek()->format('Y-m-d')),
+                'tanggal_kembali' => old('tanggal_kembali', now()->addDays(7)->format('Y-m-d')),
                 'keperluan'       => old('keperluan', ''),
             ],
             'info_teks' => count($aset_tersedia) > 0
@@ -224,6 +224,17 @@ class KaryawanController extends Controller
             'tanggal_pinjam.after_or_equal' => 'Tanggal pinjam tidak boleh sebelum hari ini.',
             'tanggal_kembali.after'         => 'Tanggal kembali harus setelah tanggal pinjam.',
         ]);
+
+        // Validasi: durasi peminjaman maksimal 7 hari
+        $tglPinjam  = Carbon::parse($validated['tanggal_pinjam']);
+        $tglKembali = Carbon::parse($validated['tanggal_kembali']);
+        $durasi     = $tglPinjam->diffInDays($tglKembali);
+
+        if ($durasi > 7) {
+            return back()
+                ->withInput()
+                ->withErrors(['tanggal_kembali' => "Durasi peminjaman maksimal 7 hari. Durasi yang Anda masukkan: {$durasi} hari."]);
+        }
 
         // Pastikan aset masih tersedia
         $aset = \App\Models\Aset::where('id_aset', $validated['aset_id'])
