@@ -326,6 +326,10 @@
             grid-template-columns: 1fr;
         }
     }
+    
+    .font-elbow{
+        font-size: 12px;
+    }
 </style>
 @endpush
 
@@ -395,14 +399,19 @@
         </div>
  
         <div class="chart-panel-footer">
-            Sistem menggunakan K={{ $kDipakai }} sesuai batasan penelitian (Sub-bab 1.4). <br>
-            <b>Elbow method adalah teknik atau pendekatan heuristik yang digunakan dalam machine learning dan analisis data untuk menentukan jumlah klaster optimal (k).</b>
-            <br>
-
-            <br>
-            <b>Grafik ini membantu sistem menentukan jumlah kelompok (cluster) yang paling pas untuk mengelompokkan peminjam. Titik "siku" pada grafik menunjukkan jumlah kelompok yang paling optimal. <br>
-            <br>
-            Elbow Method adalah cara untuk mencari tahu berapa jumlah kelompok (cluster) yang paling tepat digunakan saat mengelompokkan peminjam berdasarkan perilakunya. Grafik ini menghitung nilai inertia — yaitu seberapa rapat anggota-anggota di dalam satu kelompok — untuk setiap kemungkinan jumlah kelompok (K=2, K=3, K=4, dan seterusnya). Semakin banyak jumlah kelompok, nilai inertia akan semakin kecil, tapi penurunannya akan melambat setelah titik tertentu. Titik di mana penurunan mulai melambat inilah yang disebut "titik siku" (elbow point), dan itu menjadi jumlah kelompok yang direkomendasikan — cukup banyak untuk membedakan pola perilaku peminjam, tapi tidak berlebihan sehingga tetap mudah dipahami.</b>
+            Sistem menggunakan K={{ $kDipakai }}. <br>
+        </div>
+        <div class="chart-panel-footer,color: black">
+             <div class="font-elbow" >
+                <b>Elbow method adalah teknik atau pendekatan heuristik yang digunakan dalam machine learning dan analisis data untuk menentukan jumlah klaster optimal (k).</b>
+                <br>
+                <br>
+                <b>Grafik ini membantu sistem menentukan jumlah kelompok (cluster) yang paling pas untuk mengelompokkan peminjam. Titik "siku" pada grafik menunjukkan jumlah kelompok yang paling optimal. <br>
+                <br>
+                Elbow Method adalah cara untuk mencari tahu berapa jumlah kelompok (cluster) yang paling tepat digunakan saat mengelompokkan peminjam berdasarkan perilakunya. Grafik ini menghitung nilai inertia — 
+                yaitu seberapa rapat anggota-anggota di dalam satu kelompok — untuk setiap kemungkinan jumlah kelompok (K=2, K=3, K=4, dan seterusnya). Semakin banyak jumlah kelompok, nilai inertia akan semakin kecil, tapi penurunannya akan melambat setelah titik tertentu. Titik di mana penurunan mulai 
+                melambat inilah yang disebut "titik siku" (elbow point), dan itu menjadi jumlah kelompok yang direkomendasikan — cukup banyak untuk membedakan pola perilaku peminjam, tapi tidak berlebihan sehingga tetap mudah dipahami.</b>
+            </div>
         </div>
     @else
         <div class="text-center text-muted py-5" style="font-size:13px;">
@@ -468,16 +477,21 @@
                     K={{ $kOptimalSilhouette }}, namun sistem tetap menggunakan
                     K={{ $kDipakai }} sesuai batasan penelitian.
                     <br>
-                    <br>
                 </span>
+            @endif
+
+            {{-- Penjelasan selalu ditampilkan, tidak bergantung pada kondisi K optimal --}}
+            <br>
+            <span style="color: black; font-size:11.5px;">
                 <b>Silhouette score adalah metrik evaluasi yang digunakan untuk mengukur kualitas dan validitas hasil pengelompokan (clustering) pada data.</b>
                 <br>
                 <b>Angka ini menunjukkan seberapa baik pemisahan antar kelompok peminjam. Semakin tinggi persentasenya (mendekati 100%), semakin jelas perbedaan antar kelompok.</b>
-                <br>
-                <br>
-                <b>Silhouette Score mengukur kualitas hasil pengelompokan dengan melihat dua hal sekaligus: seberapa dekat seorang peminjam dengan anggota lain di kelompoknya sendiri, dan seberapa jauh ia dari kelompok lain. Nilainya berkisar dari -100% sampai 100%. Semakin tinggi nilainya, semakin jelas dan tegas pemisahan antar 
-                    kelompok - artinya peminjam dalam satu kelompok memang benar-benar mirip satu sama lain, dan berbeda jauh dari kelompok lainnya. Sebaliknya, nilai yang rendah menandakan batas antar kelompok masih kabur, sehingga ada peminjam yang polanya berada di antara dua kelompok sekaligus.</b>
-            @endif
+                <br><br>
+                <b>Silhouette Score mengukur kualitas hasil pengelompokan dengan melihat dua hal sekaligus: seberapa dekat seorang peminjam dengan anggota lain di kelompoknya sendiri,
+                    dan seberapa jauh ia dari kelompok lain. Nilainya berkisar dari -100% sampai 100%. Semakin tinggi nilainya, semakin jelas dan tegas pemisahan antar
+                    kelompok - artinya peminjam dalam satu kelompok memang benar-benar mirip satu sama lain, dan berbeda jauh dari kelompok lainnya. Sebaliknya, nilai yang rendah
+                    menandakan batas antar kelompok masih kabur, sehingga ada peminjam yang polanya berada di antara dua kelompok sekaligus.</b>
+            </span>
         </div>
     @else
         <div class="text-center text-muted py-5" style="font-size:13px;">
