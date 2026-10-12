@@ -240,18 +240,21 @@ class AdminController extends Controller
                 : (Carbon::now()->gt($batasKembali) ? Carbon::now()->diffInDays($batasKembali) : 0);
 
             return [
-                'id'             => $p->id_peminjaman,
-                'peminjam'       => $p->peminjam->nama ?? '-',
-                'aset'           => $p->aset->nama_aset ?? '-',
-                'tanggal_pinjam' => $p->tgl_pinjam
-                                        ? Carbon::parse($p->tgl_pinjam)->format('d M Y')
-                                        : ($p->tgl_pengajuan ? Carbon::parse($p->tgl_pengajuan)->format('d M Y') : '-'),
-                'batas_kembali'  => $batasKembali->format('d M Y'),
-                'status'         => in_array($p->status, ['Dikembalikan', 'Dikembalikan Terlambat'])
-                                        ? 'Dikembalikan'
-                                        : $p->status,
-                'status_raw'     => $p->status,  // status asli dari DB untuk logika tombol aksi
-                'terlambat_hari' => $terlambatHari,
+                'id'                 => $p->id_peminjaman,
+                'peminjam'           => $p->peminjam->nama ?? '-',
+                'aset'               => $p->aset->nama_aset ?? '-',
+                'tanggal_pinjam'     => $p->tgl_pinjam
+                                            ? Carbon::parse($p->tgl_pinjam)->format('d M Y')
+                                            : ($p->tgl_pengajuan ? Carbon::parse($p->tgl_pengajuan)->format('d M Y') : '-'),
+                'batas_kembali'      => $batasKembali->format('d M Y'),
+                'tgl_kembali_aktual' => $p->tgl_kembali_aktual
+                                            ? Carbon::parse($p->tgl_kembali_aktual)->format('d M Y')
+                                            : null,
+                'status'             => in_array($p->status, ['Dikembalikan', 'Dikembalikan Terlambat'])
+                                            ? 'Dikembalikan'
+                                            : $p->status,
+                'status_raw'         => $p->status,
+                'terlambat_hari'     => $terlambatHari,
             ];
         });
 
@@ -423,22 +426,47 @@ class AdminController extends Controller
 
         $total = $totalLog ?: ProfilCluster::count();
 
+        // ── Rata-rata F1–F5 per cluster (untuk modal detail) ─────────────
+        $rataFitur = ProfilCluster::selectRaw(
+            'label_cluster,
+             ROUND(AVG(nilai_f1), 1) as rata_f1,
+             ROUND(AVG(nilai_f2), 1) as rata_f2,
+             ROUND(AVG(nilai_f3), 1) as rata_f3,
+             ROUND(AVG(nilai_f4), 1) as rata_f4,
+             ROUND(AVG(nilai_f5), 0) as rata_f5'
+        )->groupBy('label_cluster')->get()->keyBy('label_cluster');
+
         $summary = [
             'total_peminjam' => $total,
             'cluster_a' => [
                 'label'  => optional($namaCluster->get('A'))->nama_cluster ?? 'Cluster A',
                 'jumlah' => $distA,
                 'persen' => $total > 0 ? round($distA / $total * 100) : 0,
+                'f1'     => optional($rataFitur->get('A'))->rata_f1 ?? 0,
+                'f2'     => optional($rataFitur->get('A'))->rata_f2 ?? 0,
+                'f3'     => optional($rataFitur->get('A'))->rata_f3 ?? 0,
+                'f4'     => optional($rataFitur->get('A'))->rata_f4 ?? 0,
+                'f5'     => optional($rataFitur->get('A'))->rata_f5 ?? 0,
             ],
             'cluster_b' => [
                 'label'  => optional($namaCluster->get('B'))->nama_cluster ?? 'Cluster B',
                 'jumlah' => $distB,
                 'persen' => $total > 0 ? round($distB / $total * 100) : 0,
+                'f1'     => optional($rataFitur->get('B'))->rata_f1 ?? 0,
+                'f2'     => optional($rataFitur->get('B'))->rata_f2 ?? 0,
+                'f3'     => optional($rataFitur->get('B'))->rata_f3 ?? 0,
+                'f4'     => optional($rataFitur->get('B'))->rata_f4 ?? 0,
+                'f5'     => optional($rataFitur->get('B'))->rata_f5 ?? 0,
             ],
             'cluster_c' => [
                 'label'  => optional($namaCluster->get('C'))->nama_cluster ?? 'Cluster C',
                 'jumlah' => $distC,
                 'persen' => $total > 0 ? round($distC / $total * 100) : 0,
+                'f1'     => optional($rataFitur->get('C'))->rata_f1 ?? 0,
+                'f2'     => optional($rataFitur->get('C'))->rata_f2 ?? 0,
+                'f3'     => optional($rataFitur->get('C'))->rata_f3 ?? 0,
+                'f4'     => optional($rataFitur->get('C'))->rata_f4 ?? 0,
+                'f5'     => optional($rataFitur->get('C'))->rata_f5 ?? 0,
             ],
         ];
 
@@ -520,9 +548,28 @@ class AdminController extends Controller
             'terlambat'     => round($p->nilai_f3 ?? 0, 1) . '%',
         ]);
 
+        // ── Semua anggota per cluster (lengkap F1–F5, untuk modal) ────────
+        $semuaPeminjamCluster = ProfilCluster::with('pengguna')
+            ->orderBy('label_cluster')
+            ->orderBy('pengguna_id')
+            ->get()
+            ->map(fn($p) => [
+                'id'           => $p->pengguna_id,
+                'nama'         => $p->pengguna->nama ?? '-',
+                'cluster'      => $p->label_cluster,
+                'nama_cluster' => $p->nama_cluster,
+                'f1'           => (float) round($p->nilai_f1 ?? 0, 1),
+                'f2'           => (float) round($p->nilai_f2 ?? 0, 1),
+                'f3'           => (float) round($p->nilai_f3 ?? 0, 1),
+                'f4'           => (float) round($p->nilai_f4 ?? 0, 1),
+                'f5'           => (float) round($p->nilai_f5 ?? 0, 0),
+            ])
+            ->groupBy('cluster');
+
         return view('admin.cluster', compact(
             'meta', 'summary', 'elbow', 'silhouette', 'indikator',
-            'peminjam', 'peminjamRaw', 'kOptimalSilhouette', 'kDipakai'
+            'peminjam', 'peminjamRaw', 'kOptimalSilhouette', 'kDipakai',
+            'semuaPeminjamCluster'
         ));
     }
 
@@ -580,14 +627,11 @@ class AdminController extends Controller
         return back()->with('success', 'Semua notifikasi telah ditandai sebagai dibaca.');
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // JALANKAN CLUSTERING — dipanggil tombol "Jalankan Cluster"
-    // Menghitung F1-F5 dari peminjaman, kirim ke Flask, simpan hasil
-    // ══════════════════════════════════════════════════════════════════════
+    
     public function jalankanCluster(Request $request)
     {
         try {
-            // ── 1. Hitung F1-F5 dari data transaksi peminjaman ──────────
+            // ── 1
             $dataFitur = $this->hitungFiturF1F5();
 
             if (count($dataFitur) < self::MIN_PEMINJAM) {
@@ -602,7 +646,7 @@ class AdminController extends Controller
                 return back()->with('error', $pesan);
             }
 
-            // ── 2. Kirim ke Python Flask API — endpoint /clustering ──────
+            // 2
             $response = Http::timeout(60)
                 ->post(self::PYTHON_API . '/clustering', ['data' => $dataFitur]);
 
@@ -624,7 +668,7 @@ class AdminController extends Controller
                 return back()->with('error', $pesan);
             }
 
-            // ── 3. Ambil data Elbow + Silhouette per K yang ASLI ─────────
+            //  3. Ambil data Elbow + Silhouette per K yang ASLI 
             $elbowData   = null;
             $kOptimalSil = null;
 
@@ -644,7 +688,7 @@ class AdminController extends Controller
                 $elbowData = null;
             }
 
-            // ── 4. Simpan hasil ke tabel profil_cluster ───────────────────
+            // 4. Simpan hasil ke tabel profil_cluster 
             DB::beginTransaction();
 
             foreach ($hasil['hasil'] as $item) {
@@ -664,7 +708,7 @@ class AdminController extends Controller
                 );
             }
 
-            // ── 5. Simpan log evaluasi + data elbow asli ───────────────────
+            //  5. Simpan log evaluasi + data elbow asli 
             DB::table('clustering_log')->insert([
                 'k_optimal'          => $hasil['k_optimal'] ?? 3,
                 'silhouette_score'   => $hasil['silhouette_score'] ?? 0,
@@ -725,9 +769,9 @@ class AdminController extends Controller
         }
     }
  
-    // ══════════════════════════════════════════════════════════════════════
+    
     // HELPER: Hitung F1–F5 dari tabel peminjaman (minimal 3 transaksi/user)
-    // ══════════════════════════════════════════════════════════════════════
+   
     private function hitungFiturF1F5(): array
     {
         $peminjamanData = DB::table('peminjaman as p')

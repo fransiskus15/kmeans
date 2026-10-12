@@ -21,22 +21,23 @@
 
                     <div class="col-md-3">
                         <label class="form-label">Periode dari</label>
-                        <input type="date" name="periode_from" class="form-control"
-                               value="{{ $periodeFrom }}">
+                        <input type="date" name="periode_from" class="form-control" value="{{ $periodeFrom }}">
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Periode sampai</label>
-                        <input type="date" name="periode_to" class="form-control"
-                               value="{{ $periodeTo }}">
+                        <input type="date" name="periode_to" class="form-control" value="{{ $periodeTo }}">
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label">Kategori aset</label>
                         <select name="kategori" class="form-select">
-                            <option value="all" {{ $kategori === 'all' ? 'selected' : '' }}>Semua kategori</option>
-                            @foreach ($kategoriList as $kat)
-                                <option value="{{ $kat }}" {{ $kategori === $kat ? 'selected' : '' }}>
+                            <option value="all"
+                                {{ $kategori === 'all' ? 'selected' : '' }}>
+                                Semua kategori</option>
+                            @foreach($kategoriList as $kat)
+                                <option value="{{ $kat }}"
+                                    {{ $kategori === $kat ? 'selected' : '' }}>
                                     {{ $kat }}
                                 </option>
                             @endforeach
@@ -46,10 +47,20 @@
                     <div class="col-md-3">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select">
-                            <option value="all"        {{ $status === 'all'        ? 'selected' : '' }}>Semua status</option>
-                            <option value="tepat_waktu"{{ $status === 'tepat_waktu'? 'selected' : '' }}>Tepat waktu</option>
-                            <option value="terlambat"  {{ $status === 'terlambat'  ? 'selected' : '' }}>Terlambat</option>
-                            <option value="menunggu"   {{ $status === 'menunggu'   ? 'selected' : '' }}>Menunggu</option>
+                            <option value="all"
+                                {{ $status === 'all'        ? 'selected' : '' }}>
+                                Semua status</option>
+                            <option value="tepat_waktu"
+                                {{ $status === 'tepat_waktu'? 'selected' : '' }}>
+                                Tepat waktu
+                            </option>
+                            <option value="terlambat"
+                                {{ $status === 'terlambat'  ? 'selected' : '' }}>
+                                Terlambat
+                            </option>
+                            <option value="menunggu"
+                                {{ $status === 'menunggu'   ? 'selected' : '' }}>
+                                Menunggu</option>
                         </select>
                     </div>
 
@@ -67,8 +78,7 @@
                             'periode_to'   => $periodeTo,
                             'kategori'     => $kategori !== 'all' ? $kategori : null,
                             'status'       => $status !== 'all' ? $status : null,
-                        ])) }}"
-                        class="btn btn-danger" target="_blank">
+                        ])) }}" class="btn btn-danger" target="_blank">
                         <i class="bi bi-file-earmark-pdf-fill me-1"></i> Ekspor PDF
                     </a>
 
@@ -78,8 +88,7 @@
                             'periode_to'   => $periodeTo,
                             'kategori'     => $kategori !== 'all' ? $kategori : null,
                             'status'       => $status !== 'all' ? $status : null,
-                        ])) }}"
-                        class="btn btn-success">
+                        ])) }}" class="btn btn-success">
                         <i class="bi bi-file-earmark-excel-fill me-1"></i> Ekspor Excel
                     </a>
 
@@ -125,7 +134,8 @@
             <div class="card shadow-sm text-center">
                 <div class="card-body">
                     <small class="text-muted">Tingkat terlambat</small>
-                    <h3 class="text-warning fw-bold mb-0">{{ $statistik['pct_terlambat'] }}%</h3>
+                    <h3 class="text-warning fw-bold mb-0">{{ $statistik['pct_terlambat'] }}%
+                    </h3>
                 </div>
             </div>
         </div>
@@ -154,61 +164,61 @@
 
                     <tbody>
 
-                        @forelse ($peminjaman as $item)
-                        <tr>
-                            {{-- Nama peminjam melalui relasi --}}
-                            <td>{{ $item->peminjam->nama ?? '-' }}</td>
+                        @forelse($peminjaman as $item)
+                            <tr>
+                                {{-- Nama peminjam melalui relasi --}}
+                                <td>{{ $item->peminjam->nama ?? '-' }}</td>
 
-                            {{-- Nama aset melalui relasi --}}
-                            <td>{{ $item->aset->nama_aset ?? '-' }}</td>
+                                {{-- Nama aset melalui relasi --}}
+                                <td>{{ $item->aset->nama_aset ?? '-' }}</td>
 
-                            {{-- Tanggal pinjam --}}
-                            <td>
-                                {{ $item->tgl_pengajuan
+                                {{-- Tanggal pinjam --}}
+                                <td>
+                                    {{ $item->tgl_pengajuan
                                     ? \Carbon\Carbon::parse($item->tgl_pengajuan)->format('d M Y')
                                     : '-' }}
-                            </td>
+                                </td>
 
-                            {{-- Tanggal kembali aktual --}}
-                            <td>
-                                {{ $item->tgl_kembali_aktual
+                                {{-- Tanggal kembali aktual --}}
+                                <td>
+                                    {{ $item->tgl_kembali_aktual
                                     ? \Carbon\Carbon::parse($item->tgl_kembali_aktual)->format('d M Y')
                                     : '-' }}
-                            </td>
+                                </td>
 
-                            {{-- Durasi hari --}}
-                            <td>
-                                @if ($item->tgl_kembali_aktual && $item->tgl_pengajuan)
-                                    {{ \Carbon\Carbon::parse($item->tgl_pengajuan)
+                                {{-- Durasi hari --}}
+                                <td>
+                                    @if($item->tgl_kembali_aktual && $item->tgl_pengajuan)
+                                        {{ \Carbon\Carbon::parse($item->tgl_pengajuan)
                                         ->diffInDays(\Carbon\Carbon::parse($item->tgl_kembali_aktual)) }}
-                                @else
-                                    -
-                                @endif
-                            </td>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
 
-                            {{-- Badge status terlambat/tepat waktu --}}
-                            <td>
-                                @php
-                                    $terlambat = $item->tgl_kembali_aktual &&
+                                {{-- Badge status terlambat/tepat waktu --}}
+                                <td>
+                                    @php
+                                        $terlambat = $item->tgl_kembali_aktual &&
                                         \Carbon\Carbon::parse($item->tgl_kembali_aktual)
-                                            ->gt(\Carbon\Carbon::parse($item->tgl_rencana_kembali));
-                                @endphp
+                                        ->gt(\Carbon\Carbon::parse($item->tgl_rencana_kembali));
+                                    @endphp
 
-                                @if ($terlambat)
-                                    <span class="badge bg-danger">Terlambat</span>
-                                @elseif ($item->tgl_kembali_aktual)
-                                    <span class="badge bg-success">Tepat Waktu</span>
-                                @else
-                                    <span class="badge bg-secondary">Belum Kembali</span>
-                                @endif
-                            </td>
-                        </tr>
+                                    @if($terlambat)
+                                        <span class="badge bg-danger">Terlambat</span>
+                                    @elseif($item->tgl_kembali_aktual)
+                                        <span class="badge bg-success">Tepat Waktu</span>
+                                    @else
+                                        <span class="badge bg-secondary">Belum Kembali</span>
+                                    @endif
+                                </td>
+                            </tr>
                         @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
-                                Tidak ada data untuk periode dan filter yang dipilih.
-                            </td>
-                        </tr>
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    Tidak ada data untuk periode dan filter yang dipilih.
+                                </td>
+                            </tr>
                         @endforelse
 
                     </tbody>

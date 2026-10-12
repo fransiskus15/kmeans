@@ -87,6 +87,7 @@
                         <th>Aset</th>
                         <th>Tgl pinjam</th>
                         <th>Batas kembali</th>
+                        <th>Tgl kembali aktual</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -99,6 +100,22 @@
                         <td>{{ $row['aset'] }}</td>
                         <td>{{ $row['tanggal_pinjam'] }}</td>
                         <td>{{ $row['batas_kembali'] }}</td>
+                        <td>
+                            @if($row['tgl_kembali_aktual'])
+                                <span style="
+                                    display:inline-flex;align-items:center;gap:4px;
+                                    background:#d1fae5;color:#065f46;
+                                    border:1px solid #6ee7b7;
+                                    border-radius:6px;padding:3px 9px;
+                                    font-size:12px;font-weight:600;
+                                ">
+                                    <i class="bi bi-calendar-check"></i>
+                                    {{ $row['tgl_kembali_aktual'] }}
+                                </span>
+                            @else
+                                <span style="color:#b0b0b0;font-size:12px;">&mdash;</span>
+                            @endif
+                        </td>
                         <td>
                             @if ($row['status'] === 'Dikembalikan')
                                 <span class="badge-pill badge-dikembalikan">{{ $row['status'] }}</span>
@@ -131,7 +148,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Tidak ada peminjaman aktif saat ini.</td>
+                        <td colspan="8" class="text-center text-muted py-4">Tidak ada peminjaman aktif saat ini.</td>
                     </tr>
                     @endforelse
                 </tbody>
