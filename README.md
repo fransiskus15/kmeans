@@ -1,6 +1,4 @@
-<div align="center">
-                    <img src="public/img/logo.jpg" alt="pos omah">
-</div>
+
 
 ## SISTEM INFORMASI PEMINJAMAN ASET DENGAN ANALISIS PERILAKU PEMINJAM MENGGUNAKAN _K-MEANS CLUSTERING_    
 
