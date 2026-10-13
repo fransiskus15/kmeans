@@ -40,3 +40,4 @@ Laporan Peminjaman
 ## Kotributor
 
     FRANSISKUS ZEDEKIA SITUMORANG -> Pengembang 
+    Sukma Evadini, S.T., M.Kom -> Pembimbing
